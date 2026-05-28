@@ -1,0 +1,5 @@
+python-telegram-bot==21.3
+supabase==2.3.4
+httpx==0.27.2
+groq
+python-dotenv
