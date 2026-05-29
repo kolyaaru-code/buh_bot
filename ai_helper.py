@@ -1,5 +1,7 @@
 # ============================================================
 # AI_HELPER.PY — общение с нейросетью Groq
+# Версия 2: один запрос на сообщение вместо трёх,
+# разбор целей и долгов, без дублирования "записал".
 # ============================================================
 
 import os
@@ -14,11 +16,36 @@ logger = logging.getLogger(__name__)
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# ------------------------------------------------------------
+MODEL = "llama-3.3-70b-versatile"
+
+# ============================================================
+# ВСПОМОГАТЕЛЬНОЕ: безопасное приведение суммы к числу
+# ИИ иногда возвращает "500", "2 000", "1.000,50" и т.п.
+# ============================================================
+def _to_float(value) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    # это строка — чистим от пробелов, валюты, разделителей тысяч
+    s = str(value).strip().lower()
+    for junk in ["руб", "р.", "р", "₽", "rub", " ", "\u00a0"]:
+        s = s.replace(junk, "")
+    s = s.replace(",", ".")
+    # если осталось несколько точек (разделители тысяч) — берём как есть число без них
+    if s.count(".") > 1:
+        s = s.replace(".", "")
+    try:
+        return float(s)
+    except (ValueError, TypeError):
+        return None
+
+
+# ============================================================
 # СТРОИМ СИСТЕМНЫЙ ПРОМПТ ДИНАМИЧЕСКИ
 # Каждый раз когда бот отвечает — он получает свежий контекст:
 # профиль, цели, долги, статистику
-# ------------------------------------------------------------
+# ============================================================
 def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, debts: list) -> str:
 
     # Профиль
@@ -84,110 +111,168 @@ def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, 
 {debts_text}
 
 ТВОИ ЗАДАЧИ:
-1. Вести финансовый учёт — записывать доходы и расходы
-2. Помнить контекст разговора и всё что знаешь о пользователе
-3. Давать персональные советы на основе реальных данных выше
-4. Помогать с целями и долгами
-5. Если узнаёшь новое о пользователе — запоминать это
+1. Помнить контекст разговора и всё что знаешь о пользователе
+2. Давать персональные советы на основе реальных данных выше
+3. Помогать с целями и долгами
 
 ПРАВИЛА:
 - Всегда обращайся по имени если знаешь его
 - Отвечай кратко — 2-4 предложения если не просят подробнее
 - Опирайся на реальные данные выше, не выдумывай
-- Если видишь финансовую операцию в тексте — скажи что записал
-- Если пользователь рассказывает о себе (имя, работа, город, цели) — 
-  обязательно скажи что запомнил это"""
+- ВАЖНО: НЕ пиши "записал", "зафиксировал", "добавил цель", "сохранил долг".
+  Запись в базу и подтверждение делает система отдельно, до твоего ответа.
+  Твоя задача — только живой комментарий и совет, без отчёта о записи.
+- Если в сообщении была трата/доход/цель/долг — система уже их сохранила,
+  тебе нужно лишь по-человечески отреагировать (например: "Понял, обед — святое 🍕"
+  или "Отличная цель! Чтобы накопить за полгода, откладывай по 25000 в месяц")."""
 
-# ------------------------------------------------------------
-# РАСПОЗНАТЬ ФИНАНСОВЫЕ ОПЕРАЦИИ ИЗ ТЕКСТА
-# ------------------------------------------------------------
-def parse_transaction(text: str) -> list | None:
+
+# ============================================================
+# ГЛАВНЫЙ АНАЛИЗ СООБЩЕНИЯ — ОДИН запрос вместо трёх
+# Возвращает словарь со ВСЕМИ найденными сущностями:
+# transactions, profile, goals, debts
+# ============================================================
+def analyze_message(text: str) -> dict:
+    empty = {"transactions": [], "profile": {}, "goals": [], "debts": []}
     try:
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=MODEL,
             messages=[
                 {
                     "role": "system",
-                    "content": """Ты извлекаешь финансовые операции из текста.
-Верни ТОЛЬКО валидный JSON-массив без пояснений, даже если операция одна:
-[{"type": "expense" или "income", "amount": число, "category": "категория", "description": "описание"}]
+                    "content": """Ты извлекаешь финансовые сущности из сообщения пользователя.
+Верни ТОЛЬКО валидный JSON-объект без пояснений и без markdown, строго такой структуры:
 
-Категории расходов: еда, транспорт, жильё, здоровье, развлечения, одежда, техника, другое
-Категории доходов: зарплата, фриланс, подарок, другое
+{
+  "transactions": [{"type": "expense"|"income", "amount": число, "category": "...", "description": "..."}],
+  "profile": {"name": "...", "city": "...", "job": "...", "age": "...", "income_source": "..."},
+  "goals": [{"title": "...", "target_amount": число, "deadline": "YYYY-MM-DD"|null}],
+  "debts": [{"direction": "i_owe"|"owe_me", "person": "...", "amount": число, "description": "...", "due_date": "YYYY-MM-DD"|null}]
+}
 
-Если операций нет — верни: []
+Любой раздел, для которого нет данных, оставляй пустым ([] или {}).
 
-Примеры:
-"потратил 500 на обед" → [{"type": "expense", "amount": 500, "category": "еда", "description": "обед"}]
-"купил колбасы за 2000 и подписку за 500" → [{"type": "expense", "amount": 2000, "category": "еда", "description": "колбасы"}, {"type": "expense", "amount": 500, "category": "развлечения", "description": "подписка"}]
-"нашёл 100 рублей" → [{"type": "income", "amount": 100, "category": "другое", "description": "нашёл деньги"}]
-"как дела" → []
-"меня зовут Никита" → []"""
+КАТЕГОРИИ расходов: еда, транспорт, жильё, здоровье, развлечения, одежда, техника, другое
+КАТЕГОРИИ доходов: зарплата, фриланс, подарок, другое
+
+КРИТИЧЕСКИ ВАЖНО — НЕ ПУТАЙ ТИПЫ:
+- "ЦЕЛЬ" — это намерение накопить в будущем. Маркеры: "хочу накопить", "хочу купить", "цель", "коплю на", "мечтаю о". Это НЕ расход! Идёт в "goals", target_amount = нужная сумма.
+- "ДОЛГ" — кто-то кому-то должен. Маркеры: "должен мне", "я должен", "занял у", "дал в долг", "взял в долг". Идёт в "debts".
+  - "i_owe" = я должен кому-то ("я должен Саше", "занял у Саши").
+  - "owe_me" = должны мне ("Саша должен мне", "дал Саше в долг").
+- "ТРАНЗАКЦИЯ" — уже состоявшаяся трата или приход денег. Маркеры: "потратил", "купил", "заплатил", "получил", "заработал", "пришло".
+
+ПРИМЕРЫ:
+"потратил 500 на обед"
+→ {"transactions":[{"type":"expense","amount":500,"category":"еда","description":"обед"}],"profile":{},"goals":[],"debts":[]}
+
+"хочу накопить на MacBook 150000"
+→ {"transactions":[],"profile":{},"goals":[{"title":"MacBook","target_amount":150000,"deadline":null}],"debts":[]}
+
+"коплю на отпуск 200000 к июлю"
+→ {"transactions":[],"profile":{},"goals":[{"title":"отпуск","target_amount":200000,"deadline":null}],"debts":[]}
+
+"Саша должен мне 3000"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[{"direction":"owe_me","person":"Саша","amount":3000,"description":"","due_date":null}]}
+
+"занял у Пети 5000 до пятницы"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[{"direction":"i_owe","person":"Петя","amount":5000,"description":"","due_date":null}]}
+
+"меня зовут Никита, работаю дизайнером в Москве"
+→ {"transactions":[],"profile":{"name":"Никита","job":"дизайнер","city":"Москва"},"goals":[],"debts":[]}
+
+"купил колбасы за 2000 и получил зарплату 80000"
+→ {"transactions":[{"type":"expense","amount":2000,"category":"еда","description":"колбаса"},{"type":"income","amount":80000,"category":"зарплата","description":"зарплата"}],"profile":{},"goals":[],"debts":[]}
+
+"как дела"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[]}
+
+ПРАВИЛО ПРОФИЛЯ: заноси в profile только осмысленные факты. Не заноси "не знаю", "никак",
+вопросы, шутки. Если человек не сообщил реальное имя/город/работу — оставь profile пустым {}."""
                 },
                 {"role": "user", "content": text}
             ],
             temperature=0.1,
-            max_tokens=300,
+            max_tokens=500,
         )
 
         raw = response.choices[0].message.content.strip()
-        logger.info(f"🤖 ИИ распознал транзакции: {raw}")
+        logger.info(f"🤖 ИИ-анализ: {raw}")
 
         data = json.loads(raw)
-        return data if data else None
+
+        # --- нормализация и валидация ---
+        result = {"transactions": [], "profile": {}, "goals": [], "debts": []}
+
+        # транзакции
+        for t in data.get("transactions", []) or []:
+            amount = _to_float(t.get("amount"))
+            if amount is None or amount <= 0:
+                logger.warning(f"⚠️ Пропущена транзакция с некорректной суммой: {t}")
+                continue
+            if t.get("type") not in ("expense", "income"):
+                continue
+            result["transactions"].append({
+                "type": t["type"],
+                "amount": amount,
+                "category": t.get("category") or "другое",
+                "description": t.get("description") or text,
+            })
+
+        # профиль — отсекаем мусор
+        bad_values = {"", "не знаю", "никак", "нет", "хз", "не указано", "none", "null"}
+        for key, value in (data.get("profile") or {}).items():
+            if key not in ("name", "city", "job", "age", "income_source"):
+                continue
+            v = str(value).strip()
+            if v.lower() in bad_values:
+                continue
+            result["profile"][key] = v
+
+        # цели
+        for g in data.get("goals", []) or []:
+            target = _to_float(g.get("target_amount"))
+            title = (g.get("title") or "").strip()
+            if not title or target is None or target <= 0:
+                logger.warning(f"⚠️ Пропущена цель без названия/суммы: {g}")
+                continue
+            result["goals"].append({
+                "title": title,
+                "target_amount": target,
+                "deadline": g.get("deadline") or None,
+            })
+
+        # долги
+        for d in data.get("debts", []) or []:
+            amount = _to_float(d.get("amount"))
+            person = (d.get("person") or "").strip()
+            direction = d.get("direction")
+            if direction not in ("i_owe", "owe_me") or amount is None or amount <= 0 or not person:
+                logger.warning(f"⚠️ Пропущен некорректный долг: {d}")
+                continue
+            result["debts"].append({
+                "direction": direction,
+                "person": person,
+                "amount": amount,
+                "description": d.get("description") or "",
+                "due_date": d.get("due_date") or None,
+            })
+
+        return result
 
     except json.JSONDecodeError:
-        logger.error(f"❌ ИИ вернул не JSON: {raw}")
-        return None
+        logger.error(f"❌ ИИ вернул не JSON: {raw if 'raw' in dir() else '???'}")
+        return empty
     except Exception as e:
-        logger.error(f"❌ Ошибка parse_transaction: {e}")
-        return None
+        logger.error(f"❌ Ошибка analyze_message: {e}")
+        return empty
 
-# ------------------------------------------------------------
-# ИЗВЛЕЧЬ ИНФОРМАЦИЮ О ПОЛЬЗОВАТЕЛЕ ИЗ ТЕКСТА
-# Если человек говорит "меня зовут Никита" — запоминаем
-# ------------------------------------------------------------
-def extract_profile_info(text: str) -> dict | None:
-    try:
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": """Извлеки личную информацию о пользователе из текста.
-Верни ТОЛЬКО валидный JSON или пустой объект {}.
 
-Возможные ключи:
-- name (имя)
-- city (город)
-- job (профессия/работа)
-- age (возраст)
-- income_source (источник дохода)
-
-Примеры:
-"меня зовут Никита" → {"name": "Никита"}
-"я живу в Москве и работаю дизайнером" → {"city": "Москва", "job": "дизайнер"}
-"мне 28 лет" → {"age": "28"}
-"потратил 500 на еду" → {}
-"как дела" → {}"""
-                },
-                {"role": "user", "content": text}
-            ],
-            temperature=0.1,
-            max_tokens=150,
-        )
-
-        raw = response.choices[0].message.content.strip()
-        data = json.loads(raw)
-        return data if data else None
-
-    except Exception as e:
-        logger.error(f"❌ Ошибка extract_profile_info: {e}")
-        return None
-
-# ------------------------------------------------------------
+# ============================================================
 # ГЛАВНАЯ ФУНКЦИЯ ОТВЕТА — с полным контекстом
-# ------------------------------------------------------------
+# saved_summary — текст того, что система уже записала,
+# чтобы ИИ это учитывал, но НЕ дублировал слово "записал".
+# ============================================================
 def chat_response(
     user_message: str,
     history: list,
@@ -196,9 +281,17 @@ def chat_response(
     monthly: dict,
     goals: list,
     debts: list,
+    saved_summary: str = "",
 ) -> str:
     try:
         system_prompt = build_system_prompt(profile, stats, monthly, goals, debts)
+
+        if saved_summary:
+            system_prompt += (
+                f"\n\nСИСТЕМА ТОЛЬКО ЧТО АВТОМАТИЧЕСКИ СОХРАНИЛА из этого сообщения:\n{saved_summary}\n"
+                "Учитывай это в ответе, но НЕ повторяй слово «записал/сохранил» — "
+                "подтверждение пользователь уже увидит отдельно."
+            )
 
         full_messages = (
             [{"role": "system", "content": system_prompt}]
@@ -207,7 +300,7 @@ def chat_response(
         )
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=MODEL,
             messages=full_messages,
             temperature=0.7,
             max_tokens=500,
@@ -217,11 +310,12 @@ def chat_response(
 
     except Exception as e:
         logger.error(f"❌ Ошибка chat_response: {e}")
-        return "Произошла ошибка. Попробуй ещё раз."
+        return "Произошла ошибка при формировании ответа. Попробуй ещё раз."
 
-# ------------------------------------------------------------
+
+# ============================================================
 # ФИНАНСОВЫЙ СОВЕТ
-# ------------------------------------------------------------
+# ============================================================
 def get_financial_advice(profile: dict, stats: dict, monthly: dict, categories: dict, goals: list, debts: list) -> str:
     try:
         system_prompt = build_system_prompt(profile, stats, monthly, goals, debts)
@@ -231,7 +325,7 @@ def get_financial_advice(profile: dict, stats: dict, monthly: dict, categories: 
             cats_text += f"  - {cat}: {amount:,.0f}\n"
 
         response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model=MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
@@ -252,9 +346,10 @@ def get_financial_advice(profile: dict, stats: dict, monthly: dict, categories: 
         logger.error(f"❌ Ошибка get_financial_advice: {e}")
         return "Не удалось получить совет. Попробуй позже."
 
-# ------------------------------------------------------------
+
+# ============================================================
 # РАСПОЗНАТЬ ГОЛОСОВОЕ СООБЩЕНИЕ
-# ------------------------------------------------------------
+# ============================================================
 def transcribe_voice(audio_path: str) -> str | None:
     try:
         with open(audio_path, "rb") as audio_file:

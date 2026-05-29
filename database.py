@@ -1,15 +1,35 @@
 # ============================================================
 # DATABASE.PY — всё общение с базой данных
+# Версия 2: часовой пояс Екатеринбург (UTC+5), русские месяцы,
+# поиск цели по названию для переспроса.
 # ============================================================
 
 import os
 import logging
+from datetime import datetime, timezone, timedelta
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
 load_dotenv()
 
 logger = logging.getLogger(__name__)
+
+# ------------------------------------------------------------
+# ЧАСОВОЙ ПОЯС — Екатеринбург, UTC+5
+# Сервер живёт по UTC (или по своему времени), а нам нужно
+# считать "месяц" и показывать даты по местному времени.
+# ------------------------------------------------------------
+LOCAL_TZ = timezone(timedelta(hours=5))
+
+RU_MONTHS = {
+    1: "январь", 2: "февраль", 3: "март", 4: "апрель",
+    5: "май", 6: "июнь", 7: "июль", 8: "август",
+    9: "сентябрь", 10: "октябрь", 11: "ноябрь", 12: "декабрь",
+}
+
+def _now_local() -> datetime:
+    """Текущее время в Екатеринбурге."""
+    return datetime.now(LOCAL_TZ)
 
 # ------------------------------------------------------------
 # ПОДКЛЮЧЕНИЕ К SUPABASE
@@ -45,8 +65,8 @@ def get_stats() -> dict:
         db = get_client()
         result = db.table("transactions").select("type, amount").execute()
         rows = result.data
-        total_income  = sum(r["amount"] for r in rows if r["type"] == "income")
-        total_expense = sum(r["amount"] for r in rows if r["type"] == "expense")
+        total_income  = sum((r["amount"] or 0) for r in rows if r["type"] == "income")
+        total_expense = sum((r["amount"] or 0) for r in rows if r["type"] == "expense")
         return {
             "income":  total_income,
             "expense": total_expense,
@@ -85,36 +105,37 @@ def get_expenses_by_category() -> dict:
         categories = {}
         for row in rows:
             cat = row["category"] or "Без категории"
-            categories[cat] = categories.get(cat, 0) + row["amount"]
+            categories[cat] = categories.get(cat, 0) + (row["amount"] or 0)
         return dict(sorted(categories.items(), key=lambda x: x[1], reverse=True))
     except Exception as e:
         logger.error(f"❌ Ошибка получения категорий: {e}")
         return {}
 
 def get_monthly_stats() -> dict:
-    """Статистика за текущий месяц отдельно"""
+    """Статистика за текущий месяц по местному времени (Екатеринбург)."""
     try:
         db = get_client()
-        from datetime import datetime
-        # Первый день текущего месяца
-        now = datetime.now()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0).isoformat()
+        now = _now_local()
+        # Первый день текущего месяца, 00:00 по местному времени.
+        # Переводим в UTC-формат с зоной — Supabase хранит время в UTC.
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        month_start_iso = month_start.isoformat()
 
         result = (
             db.table("transactions")
             .select("type, amount")
-            .gte("created_at", month_start)
+            .gte("created_at", month_start_iso)
             .execute()
         )
         rows = result.data
-        total_income  = sum(r["amount"] for r in rows if r["type"] == "income")
-        total_expense = sum(r["amount"] for r in rows if r["type"] == "expense")
+        total_income  = sum((r["amount"] or 0) for r in rows if r["type"] == "income")
+        total_expense = sum((r["amount"] or 0) for r in rows if r["type"] == "expense")
         return {
             "income":  total_income,
             "expense": total_expense,
             "balance": total_income - total_expense,
             "count":   len(rows),
-            "month":   now.strftime("%B %Y"),
+            "month":   f"{RU_MONTHS[now.month]} {now.year}",
         }
     except Exception as e:
         logger.error(f"❌ Ошибка месячной статистики: {e}")
@@ -169,18 +190,40 @@ def get_goals(status: str = "active") -> list:
         logger.error(f"❌ Ошибка получения целей: {e}")
         return []
 
-def add_goal(title: str, target_amount: float, deadline: str = None) -> bool:
+def find_goal_by_title(title: str, status: str = "active") -> dict | None:
+    """
+    Ищет активную цель с похожим названием (без учёта регистра и пробелов).
+    Возвращает первую совпавшую цель или None.
+    Используется для переспроса 'такая цель уже есть'.
+    """
+    try:
+        needle = title.strip().lower().replace(" ", "")
+        if not needle:
+            return None
+        for g in get_goals(status):
+            existing = (g.get("title") or "").strip().lower().replace(" ", "")
+            if existing == needle:
+                return g
+        return None
+    except Exception as e:
+        logger.error(f"❌ Ошибка поиска цели: {e}")
+        return None
+
+def add_goal(title: str, target_amount: float, deadline: str = None) -> int | None:
+    """Добавляет цель. Возвращает id созданной цели или None при ошибке."""
     try:
         db = get_client()
         data = {"title": title, "target_amount": target_amount}
         if deadline:
             data["deadline"] = deadline
-        db.table("goals").insert(data).execute()
+        result = db.table("goals").insert(data).execute()
         logger.info(f"🎯 Цель добавлена: {title} | {target_amount}")
-        return True
+        if result.data and len(result.data) > 0:
+            return result.data[0].get("id")
+        return None
     except Exception as e:
         logger.error(f"❌ Ошибка добавления цели: {e}")
-        return False
+        return None
 
 def update_goal_progress(goal_id: int, saved_amount: float) -> bool:
     try:
@@ -273,10 +316,13 @@ def get_chat_history(limit: int = 20) -> list:
         return []
 
 def clear_chat_history() -> bool:
-    """Очистить историю диалога"""
+    """Очистить историю диалога (удаляет все строки таблицы)."""
     try:
         db = get_client()
-        db.table("chat_history").delete().neq("id", 0).execute()
+        # gte по created_at от 'начала времён' = удалить все строки.
+        # Надёжнее, чем neq id 0, и не зависит от типа id.
+        db.table("chat_history").delete().gte("created_at", "1970-01-01").execute()
+        logger.info("🧹 История диалога очищена")
         return True
     except Exception as e:
         logger.error(f"❌ Ошибка очистки истории: {e}")
