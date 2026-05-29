@@ -7,8 +7,12 @@
 import os
 import logging
 import json
+from datetime import datetime, timezone, timedelta
 from groq import Groq
 from dotenv import load_dotenv
+
+# Часовой пояс пользователя — Екатеринбург (UTC+5), чтобы ИИ считал даты от "сегодня"
+LOCAL_TZ = timezone(timedelta(hours=5))
 
 load_dotenv()
 
@@ -134,14 +138,20 @@ def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, 
 # ============================================================
 def analyze_message(text: str) -> dict:
     empty = {"transactions": [], "profile": {}, "goals": [], "debts": []}
+    today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
+    date_hint = (
+        f"Ты извлекаешь финансовые сущности из сообщения пользователя.\n"
+        f"СЕГОДНЯШНЯЯ ДАТА: {today}. Все относительные даты (\"до пятницы\", \"к июлю\", "
+        f"\"через месяц\") вычисляй ОТ СЕГОДНЯШНЕЙ ДАТЫ. Дедлайн всегда в будущем — "
+        f"год бери текущий или следующий, никогда не ставь прошедший год.\n"
+    )
     try:
         response = client.chat.completions.create(
             model=MODEL,
             messages=[
                 {
                     "role": "system",
-                    "content": """Ты извлекаешь финансовые сущности из сообщения пользователя.
-Верни ТОЛЬКО валидный JSON-объект без пояснений и без markdown, строго такой структуры:
+                    "content": date_hint + """Верни ТОЛЬКО валидный JSON-объект без пояснений и без markdown, строго такой структуры:
 
 {
   "transactions": [{"type": "expense"|"income", "amount": число, "category": "...", "description": "..."}],
