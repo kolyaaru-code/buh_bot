@@ -1,7 +1,7 @@
 # ============================================================
 # AI_HELPER.PY — общение с нейросетью Groq
-# Версия 2: один запрос на сообщение вместо трёх,
-# разбор целей и долгов, без дублирования "записал".
+# Версия 3: + раздел actions (действия над существующим:
+# пополнить цель, вернуть/погасить долг, отменить операцию).
 # ============================================================
 
 import os
@@ -122,7 +122,13 @@ def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, 
 ПРАВИЛА:
 - Всегда обращайся по имени если знаешь его
 - Отвечай кратко — 2-4 предложения если не просят подробнее
-- Опирайся на реальные данные выше, не выдумывай
+- Отвечай СТРОГО на русском языке. Никаких иероглифов, латиницы и иных алфавитов
+  в тексте быть не должно (кроме общепринятых сокращений вроде "руб").
+- Опирайся ТОЛЬКО на реальные числа из данных выше. НИКОГДА не выдумывай суммы,
+  балансы, размеры долгов или накоплений. Если точной цифры нет в данных —
+  не называй её вообще, говори общими словами.
+- Не пересчитывай и не складывай суммы в уме на ходу — легко ошибиться.
+  Если нужно сослаться на цифру — бери её ровно как она указана выше.
 - ВАЖНО: НЕ пиши "записал", "зафиксировал", "добавил цель", "сохранил долг".
   Запись в базу и подтверждение делает система отдельно, до твоего ответа.
   Твоя задача — только живой комментарий и совет, без отчёта о записи.
@@ -137,7 +143,7 @@ def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, 
 # transactions, profile, goals, debts
 # ============================================================
 def analyze_message(text: str) -> dict:
-    empty = {"transactions": [], "profile": {}, "goals": [], "debts": []}
+    empty = {"transactions": [], "profile": {}, "goals": [], "debts": [], "actions": []}
     today = datetime.now(LOCAL_TZ).strftime("%Y-%m-%d")
     date_hint = (
         f"Ты извлекаешь финансовые сущности из сообщения пользователя.\n"
@@ -157,7 +163,8 @@ def analyze_message(text: str) -> dict:
   "transactions": [{"type": "expense"|"income", "amount": число, "category": "...", "description": "..."}],
   "profile": {"name": "...", "city": "...", "job": "...", "age": "...", "income_source": "..."},
   "goals": [{"title": "...", "target_amount": число, "deadline": "YYYY-MM-DD"|null}],
-  "debts": [{"direction": "i_owe"|"owe_me", "person": "...", "amount": число, "description": "...", "due_date": "YYYY-MM-DD"|null}]
+  "debts": [{"direction": "i_owe"|"owe_me", "person": "...", "amount": число, "description": "...", "due_date": "YYYY-MM-DD"|null}],
+  "actions": [ ... действия над УЖЕ существующими целями/долгами/операциями ... ]
 }
 
 Любой раздел, для которого нет данных, оставляй пустым ([] или {}).
@@ -165,37 +172,86 @@ def analyze_message(text: str) -> dict:
 КАТЕГОРИИ расходов: еда, транспорт, жильё, здоровье, развлечения, одежда, техника, другое
 КАТЕГОРИИ доходов: зарплата, фриланс, подарок, другое
 
+============ РАЗДЕЛ "actions" — ОЧЕНЬ ВАЖНО ============
+Это действия НАД СУЩЕСТВУЮЩИМИ сущностями. Не путай с созданием новых!
+Возможные действия (каждое — отдельный объект в массиве "actions"):
+
+1. ПОПОЛНИТЬ ЦЕЛЬ (отложить деньги в счёт цели):
+   {"action": "goal_deposit", "goal_title": "название цели", "amount": число}
+   Маркеры: "отложил на …", "накопил на …", "добавил к цели …", "отложил X на <цель>".
+   ВАЖНО: это НЕ новая цель и НЕ расход. Если человек говорит "отложил 5000 на айфон" —
+   это goal_deposit, а НЕ создание цели "айфон" на 5000 и НЕ трата.
+
+2. Я ВЕРНУЛ / ПОГАСИЛ СВОЙ ДОЛГ (мои деньги уходят кредитору):
+   {"action": "debt_repay", "person": "кому", "amount": число}
+   Маркеры: "вернул <кому>", "отдал долг <кому>", "погасил кредит", "заплатил по кредиту",
+   "положил на кредитку", "внёс платёж по займу".
+   Если кредитор — банк/кредитка, person = "банк" (или название банка).
+
+3. МНЕ ВЕРНУЛИ ДОЛГ (деньги приходят ко мне):
+   {"action": "debt_return", "person": "кто вернул", "amount": число}
+   Маркеры: "<кто> вернул мне", "<кто> отдал долг", "мне вернули".
+
+4. ОТМЕНИТЬ / УДАЛИТЬ ОПЕРАЦИЮ:
+   {"action": "cancel", "hint": "что искать"}
+   Маркеры: "отмени", "удали", "убери", "я ошибся", "это не я", "не учитывай".
+   hint — слово-подсказка что искать (например "бензин", "кофе"). Если человек говорит
+   просто "отмени последнее" / "я ошибся" без уточнения — hint оставь пустым "".
+
+КАК ОТЛИЧИТЬ создание от действия:
+- "хочу накопить на айфон 120000" → СОЗДАНИЕ цели (goals). Названа ЦЕЛЕВАЯ сумма.
+- "отложил 5000 на айфон" → ПОПОЛНЕНИЕ (actions: goal_deposit). Названа сумма ВЗНОСА.
+- "Саша должен мне 3000" → СОЗДАНИЕ долга (debts).
+- "Саша вернул мне 3000" → ДЕЙСТВИЕ (actions: debt_return).
+- "занял у банка 100000" → СОЗДАНИЕ долга (debts, i_owe).
+- "погасил кредит на 5000" → ДЕЙСТВИЕ (actions: debt_repay).
+
 КРИТИЧЕСКИ ВАЖНО — НЕ ПУТАЙ ТИПЫ:
-- "ЦЕЛЬ" — это намерение накопить в будущем. Маркеры: "хочу накопить", "хочу купить", "цель", "коплю на", "мечтаю о". Это НЕ расход! Идёт в "goals", target_amount = нужная сумма.
-- "ДОЛГ" — кто-то кому-то должен. Маркеры: "должен мне", "я должен", "занял у", "дал в долг", "взял в долг". Идёт в "debts".
-  - "i_owe" = я должен кому-то ("я должен Саше", "занял у Саши").
+- "ЦЕЛЬ" — намерение накопить. Маркеры: "хочу накопить", "хочу купить", "цель", "коплю на", "мечтаю о". НЕ расход! Идёт в "goals", target_amount = нужная сумма.
+- "ДОЛГ" (новый) — впервые возникшее обязательство. Маркеры: "должен мне", "я должен", "занял у", "дал в долг", "взял в долг". Идёт в "debts".
+  - "i_owe" = я должен ("я должен Саше", "занял у Саши").
   - "owe_me" = должны мне ("Саша должен мне", "дал Саше в долг").
-- "ТРАНЗАКЦИЯ" — уже состоявшаяся трата или приход денег. Маркеры: "потратил", "купил", "заплатил", "получил", "заработал", "пришло".
+- "ТРАНЗАКЦИЯ" — обычная трата/приход, НЕ связанная с долгом или целью. Маркеры: "потратил", "купил", "заплатил", "получил зарплату", "заработал".
 
 ПРИМЕРЫ:
 "потратил 500 на обед"
-→ {"transactions":[{"type":"expense","amount":500,"category":"еда","description":"обед"}],"profile":{},"goals":[],"debts":[]}
+→ {"transactions":[{"type":"expense","amount":500,"category":"еда","description":"обед"}],"profile":{},"goals":[],"debts":[],"actions":[]}
 
 "хочу накопить на MacBook 150000"
-→ {"transactions":[],"profile":{},"goals":[{"title":"MacBook","target_amount":150000,"deadline":null}],"debts":[]}
+→ {"transactions":[],"profile":{},"goals":[{"title":"MacBook","target_amount":150000,"deadline":null}],"debts":[],"actions":[]}
 
-"коплю на отпуск 200000 к июлю"
-→ {"transactions":[],"profile":{},"goals":[{"title":"отпуск","target_amount":200000,"deadline":null}],"debts":[]}
+"отложил 10000 на отпуск"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"goal_deposit","goal_title":"отпуск","amount":10000}]}
 
 "Саша должен мне 3000"
-→ {"transactions":[],"profile":{},"goals":[],"debts":[{"direction":"owe_me","person":"Саша","amount":3000,"description":"","due_date":null}]}
+→ {"transactions":[],"profile":{},"goals":[],"debts":[{"direction":"owe_me","person":"Саша","amount":3000,"description":"","due_date":null}],"actions":[]}
+
+"Саша вернул мне те 3000"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"debt_return","person":"Саша","amount":3000}]}
 
 "занял у Пети 5000 до пятницы"
-→ {"transactions":[],"profile":{},"goals":[],"debts":[{"direction":"i_owe","person":"Петя","amount":5000,"description":"","due_date":null}]}
+→ {"transactions":[],"profile":{},"goals":[],"debts":[{"direction":"i_owe","person":"Петя","amount":5000,"description":"","due_date":null}],"actions":[]}
+
+"вернул Пете 5000"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"debt_repay","person":"Петя","amount":5000}]}
+
+"положил на кредитку 5000"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"debt_repay","person":"банк","amount":5000}]}
+
+"мне пришла зарплата 30000, сразу положил 5000 на кредитку"
+→ {"transactions":[{"type":"income","amount":30000,"category":"зарплата","description":"зарплата"}],"profile":{},"goals":[],"debts":[],"actions":[{"action":"debt_repay","person":"банк","amount":5000}]}
+
+"отмени последнюю операцию"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"cancel","hint":""}]}
+
+"удали ту трату на бензин"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"cancel","hint":"бензин"}]}
 
 "меня зовут Никита, работаю дизайнером в Москве"
-→ {"transactions":[],"profile":{"name":"Никита","job":"дизайнер","city":"Москва"},"goals":[],"debts":[]}
-
-"купил колбасы за 2000 и получил зарплату 80000"
-→ {"transactions":[{"type":"expense","amount":2000,"category":"еда","description":"колбаса"},{"type":"income","amount":80000,"category":"зарплата","description":"зарплата"}],"profile":{},"goals":[],"debts":[]}
+→ {"transactions":[],"profile":{"name":"Никита","job":"дизайнер","city":"Москва"},"goals":[],"debts":[],"actions":[]}
 
 "как дела"
-→ {"transactions":[],"profile":{},"goals":[],"debts":[]}
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[]}
 
 ПРАВИЛО ПРОФИЛЯ: заноси в profile только осмысленные факты. Не заноси "не знаю", "никак",
 вопросы, шутки. Если человек не сообщил реальное имя/город/работу — оставь profile пустым {}."""
@@ -212,7 +268,7 @@ def analyze_message(text: str) -> dict:
         data = json.loads(raw)
 
         # --- нормализация и валидация ---
-        result = {"transactions": [], "profile": {}, "goals": [], "debts": []}
+        result = {"transactions": [], "profile": {}, "goals": [], "debts": [], "actions": []}
 
         # транзакции
         for t in data.get("transactions", []) or []:
@@ -267,6 +323,28 @@ def analyze_message(text: str) -> dict:
                 "description": d.get("description") or "",
                 "due_date": d.get("due_date") or None,
             })
+
+        # действия над существующими сущностями
+        for a in data.get("actions", []) or []:
+            act = a.get("action")
+            if act == "goal_deposit":
+                amount = _to_float(a.get("amount"))
+                title = (a.get("goal_title") or "").strip()
+                if amount is None or amount <= 0 or not title:
+                    logger.warning(f"⚠️ Пропущено goal_deposit: {a}")
+                    continue
+                result["actions"].append({"action": "goal_deposit", "goal_title": title, "amount": amount})
+            elif act in ("debt_repay", "debt_return"):
+                amount = _to_float(a.get("amount"))
+                person = (a.get("person") or "").strip()
+                if amount is None or amount <= 0 or not person:
+                    logger.warning(f"⚠️ Пропущено {act}: {a}")
+                    continue
+                result["actions"].append({"action": act, "person": person, "amount": amount})
+            elif act == "cancel":
+                result["actions"].append({"action": "cancel", "hint": (a.get("hint") or "").strip()})
+            else:
+                logger.warning(f"⚠️ Неизвестное действие: {a}")
 
         return result
 

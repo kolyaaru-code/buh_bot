@@ -1,7 +1,8 @@
 # ============================================================
-# BOT.PY — версия 2
-# Память и контекст + реальное добавление целей/долгов,
-# переспрос дубликатов целей кнопками, единое ядро обработки.
+# BOT.PY — версия 3
+# Память и контекст + действия над сущностями:
+# пополнение целей, погашение/возврат долгов, отмена операций.
+# Баланс = живые деньги; долговые движения порождают транзакции.
 # ============================================================
 
 import os
@@ -80,11 +81,10 @@ def _fmt_local_date(created_at: str) -> str:
         local = dt.astimezone(LOCAL_TZ)
         return local.strftime("%d.%m.%Y")
     except Exception:
-        # запасной вариант — просто первые 10 символов
         return created_at[:10]
 
 async def _typing(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Показывает индикатор 'печатает…' вместо мусорного сообщения 'Думаю...'."""
+    """Показывает индикатор 'печатает…' вместо мусорного сообщения."""
     try:
         await context.bot.send_chat_action(
             chat_id=update.effective_chat.id,
@@ -92,6 +92,18 @@ async def _typing(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     except Exception:
         pass
+
+def _stash(context: ContextTypes.DEFAULT_TYPE, payload: dict) -> str:
+    """Кладёт данные под короткий токен в bot_data, возвращает токен (для callback_data)."""
+    token = uuid.uuid4().hex[:12]
+    context.bot_data[f"pending_{token}"] = payload
+    return token
+
+def _unstash(context: ContextTypes.DEFAULT_TYPE, token: str) -> dict | None:
+    return context.bot_data.get(f"pending_{token}")
+
+def _drop(context: ContextTypes.DEFAULT_TYPE, token: str):
+    context.bot_data.pop(f"pending_{token}", None)
 
 # ============================================================
 # КОМАНДЫ
@@ -111,8 +123,10 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"«Потратил 500 на обед» 🍕\n"
         f"«Получил зарплату 80000» 💵\n"
         f"«Хочу накопить на MacBook 150000» 🎯\n"
+        f"«Отложил 10000 на MacBook» 🐷\n"
         f"«Саша должен мне 3000» 💸\n"
-        f"«Меня зовут Никита, работаю дизайнером» 👤\n\n"
+        f"«Саша вернул мне 3000» ✅\n"
+        f"«Отмени последнюю операцию» ↩️\n\n"
         f"📋 Команды:\n"
         f"/balance — баланс\n"
         f"/month — статистика за месяц\n"
@@ -135,16 +149,25 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📊 Записей пока нет. Просто напиши что купил!")
         return
 
+    saved = db.get_saved_in_goals()
+    free = stats["balance"] - saved
+
     emoji = "🟢" if stats["balance"] > 0 else "🔴" if stats["balance"] < 0 else "⚪"
-    await update.message.reply_text(
+    text = (
         f"📊 Общий баланс\n"
         f"{'─' * 25}\n"
         f"📥 Доходы:  {stats['income']:>12,.0f}\n"
         f"📤 Расходы: {stats['expense']:>12,.0f}\n"
         f"{'─' * 25}\n"
-        f"{emoji} Баланс: {stats['balance']:>12,.0f}\n\n"
-        f"📝 Всего записей: {stats['count']}"
+        f"{emoji} Всего:  {stats['balance']:>12,.0f}\n"
     )
+    if saved > 0:
+        text += (
+            f"🐷 В копилке на цели: {saved:,.0f}\n"
+            f"✅ Свободно: {free:,.0f}\n"
+        )
+    text += f"\n📝 Всего записей: {stats['count']}"
+    await update.message.reply_text(text)
 
 @owner_only
 async def month(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -302,13 +325,32 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🧹 Память диалога очищена!")
 
 # ============================================================
-# РАЗБОР ЦЕЛЕЙ
-# Новые добавляем сразу. Дубликаты складываем в список для вопроса.
-# Возвращает: (строки_подтверждения, список_дубликатов_для_вопроса)
+# СОЗДАНИЕ ДОЛГА (двигает баланс через транзакцию)
+# дал в долг (owe_me) → расход «выдача долга»
+# взял в долг (i_owe) → доход «получен заём»
+# ============================================================
+def _create_debt_with_tx(d: dict) -> str:
+    debt_id = db.add_debt(d["direction"], d["person"], d["amount"], d["description"], d.get("due_date"))
+    if debt_id is None:
+        return f"⚠️ Не удалось записать долг ({d['person']})"
+
+    if d["direction"] == "owe_me":
+        # я дал в долг — деньги ушли из кармана
+        db.save_transaction("expense", d["amount"], "выдача долга",
+                            f"дал в долг: {d['person']}", debt_id=debt_id)
+        return f"💰 {d['person']} должен тебе: {d['amount']:,.0f} (списано с баланса)"
+    else:
+        # я взял в долг — деньги пришли в карман
+        db.save_transaction("income", d["amount"], "получен заём",
+                            f"взял в долг у: {d['person']}", debt_id=debt_id)
+        return f"💸 Ты должен {d['person']}: {d['amount']:,.0f} (зачислено на баланс)"
+
+# ============================================================
+# РАЗБОР ЦЕЛЕЙ (создание)
 # ============================================================
 def _handle_goals(goals_found: list) -> tuple[list, list]:
     saved_lines = []
-    pending = []  # цели-дубликаты, по которым нужен вопрос кнопками
+    pending = []
     for g in goals_found:
         title = g["title"]
         target = g["target_amount"]
@@ -323,61 +365,279 @@ def _handle_goals(goals_found: list) -> tuple[list, list]:
     return saved_lines, pending
 
 # ============================================================
-# ОЧЕРЕДЬ ВОПРОСОВ ПРО ДУБЛИКАТЫ ЦЕЛЕЙ (кнопками)
-# Данные о цели держим в context.bot_data по короткому токену,
-# чтобы не превышать лимит callback_data (64 байта).
+# ОБРАБОТКА ACTIONS (действия над существующим)
+# Возвращает (saved_lines, summary_parts, questions)
 # ============================================================
-async def _ask_goal_duplicates(update: Update, context: ContextTypes.DEFAULT_TYPE, pending: list):
-    for p in pending:
-        token = uuid.uuid4().hex[:12]
-        # сохраняем параметры цели под токеном
-        context.bot_data[f"goal_{token}"] = p
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✅ Добавить вторую", callback_data=f"gadd:{token}"),
-            InlineKeyboardButton("❌ Не добавлять",   callback_data=f"gskip:{token}"),
+def _handle_actions(actions: list) -> tuple[list, list, list]:
+    saved_lines = []
+    summary_parts = []
+    questions = []
+
+    for a in actions:
+        act = a["action"]
+
+        # --- пополнить цель (баланс НЕ трогаем) ---
+        if act == "goal_deposit":
+            goal = db.find_goal_by_title(a["goal_title"])
+            if goal is None:
+                questions.append({
+                    "kind": "goal_missing",
+                    "goal_title": a["goal_title"],
+                    "amount": a["amount"],
+                })
+                continue
+            updated = db.add_to_goal(goal["id"], a["amount"])
+            if updated:
+                tgt = updated.get("target_amount") or 0
+                sv = updated.get("saved_amount") or 0
+                pct = (sv / tgt * 100) if tgt > 0 else 0
+                saved_lines.append(
+                    f"🐷 В копилку «{updated['title']}»: +{a['amount']:,.0f} "
+                    f"(итого {sv:,.0f} из {tgt:,.0f}, {pct:.0f}%)"
+                )
+                summary_parts.append(f"пополнена цель {updated['title']} на {a['amount']:.0f}")
+            else:
+                saved_lines.append(f"⚠️ Не удалось пополнить цель «{a['goal_title']}»")
+
+        # --- я вернул/погасил свой долг ---
+        elif act == "debt_repay":
+            debt = db.find_debt_by_person(a["person"], direction="i_owe")
+            if debt is None:
+                questions.append({
+                    "kind": "repay_no_debt",
+                    "person": a["person"],
+                    "amount": a["amount"],
+                })
+                continue
+            db.save_transaction("expense", a["amount"], "погашение долга",
+                                f"погашение долга: {a['person']}", debt_id=debt["id"])
+            updated = db.reduce_debt(debt["id"], a["amount"])
+            if updated and updated.get("status") == "paid":
+                saved_lines.append(f"✅ Долг перед {a['person']} погашен полностью (−{a['amount']:,.0f} с баланса)")
+            elif updated:
+                saved_lines.append(
+                    f"📉 Долг перед {a['person']} уменьшен на {a['amount']:,.0f} "
+                    f"(остаток {updated['amount']:,.0f}, списано с баланса)"
+                )
+            summary_parts.append(f"погашен долг {a['person']} на {a['amount']:.0f}")
+
+        # --- мне вернули долг ---
+        elif act == "debt_return":
+            debt = db.find_debt_by_person(a["person"], direction="owe_me")
+            if debt is None:
+                questions.append({
+                    "kind": "return_no_debt",
+                    "person": a["person"],
+                    "amount": a["amount"],
+                })
+                continue
+            db.save_transaction("income", a["amount"], "возврат долга",
+                                f"возврат долга от: {a['person']}", debt_id=debt["id"])
+            updated = db.reduce_debt(debt["id"], a["amount"])
+            if updated and updated.get("status") == "paid":
+                saved_lines.append(f"✅ {a['person']} вернул долг полностью (+{a['amount']:,.0f} на баланс)")
+            elif updated:
+                saved_lines.append(
+                    f"📈 {a['person']} вернул {a['amount']:,.0f} "
+                    f"(остаток долга {updated['amount']:,.0f}, зачислено на баланс)"
+                )
+            summary_parts.append(f"возврат долга от {a['person']} на {a['amount']:.0f}")
+
+        # --- отмена операции (через переспрос) ---
+        elif act == "cancel":
+            questions.append({
+                "kind": "cancel",
+                "hint": a.get("hint", ""),
+            })
+
+    return saved_lines, summary_parts, questions
+
+# ============================================================
+# ПЕРЕСПРОСЫ КНОПКАМИ (в конце, после основного ответа)
+# ============================================================
+async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
+                         questions: list, pending_goals: list):
+
+    # дубликаты целей
+    for p in pending_goals:
+        token = _stash(context, {"type": "goal_dup", **p})
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Добавить вторую", callback_data=f"q:gdup_add:{token}"),
+            InlineKeyboardButton("❌ Не добавлять",   callback_data=f"q:gdup_skip:{token}"),
         ]])
         await update.message.reply_text(
             f"🎯 Цель «{p['title']}» уже есть в списке.\n"
             f"Точно добавить ещё одну на {p['target']:,.0f}?",
-            reply_markup=keyboard,
+            reply_markup=kb,
         )
 
-async def goal_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Обработка нажатий на кнопки 'Добавить вторую / Не добавлять'."""
+    for q in questions:
+        kind = q["kind"]
+
+        if kind == "goal_missing":
+            token = _stash(context, q)
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🎯 Создать цель", callback_data=f"q:gmiss_add:{token}"),
+                InlineKeyboardButton("❌ Отменить",     callback_data=f"q:cancel_noop:{token}"),
+            ]])
+            await update.message.reply_text(
+                f"Цели «{q['goal_title']}» пока нет. Создать её и сразу отложить {q['amount']:,.0f}?",
+                reply_markup=kb,
+            )
+
+        elif kind == "repay_no_debt":
+            token = _stash(context, q)
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("💸 Записать в расход", callback_data=f"q:repay_exp:{token}"),
+                InlineKeyboardButton("❌ Не учитывать",      callback_data=f"q:cancel_noop:{token}"),
+            ]])
+            await update.message.reply_text(
+                f"Долга перед «{q['person']}» не нашёл.\n"
+                f"Записать {q['amount']:,.0f} как обычный расход?",
+                reply_markup=kb,
+            )
+
+        elif kind == "return_no_debt":
+            token = _stash(context, q)
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("💰 Записать в доход", callback_data=f"q:return_inc:{token}"),
+                InlineKeyboardButton("❌ Не учитывать",     callback_data=f"q:cancel_noop:{token}"),
+            ]])
+            await update.message.reply_text(
+                f"Долга «{q['person']} должен мне» не нашёл.\n"
+                f"Записать {q['amount']:,.0f} как доход?",
+                reply_markup=kb,
+            )
+
+        elif kind == "cancel":
+            hint = (q.get("hint") or "").strip().lower()
+            recent = db.get_recent_transactions_full(10)
+            target_tx = None
+            if hint:
+                for t in recent:
+                    desc = (t.get("description") or "").lower()
+                    cat = (t.get("category") or "").lower()
+                    if hint in desc or hint in cat:
+                        target_tx = t
+                        break
+            else:
+                target_tx = recent[0] if recent else None
+
+            if target_tx is None:
+                await update.message.reply_text("🤔 Не нашёл подходящую операцию для отмены.")
+                continue
+
+            token = _stash(context, {"kind": "cancel_confirm", "tx_id": target_tx["id"], "tx": target_tx})
+            emoji = "📥" if target_tx["type"] == "income" else "📤"
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("✅ Да, отменить", callback_data=f"q:cancel_yes:{token}"),
+                InlineKeyboardButton("❌ Нет",          callback_data=f"q:cancel_noop:{token}"),
+            ]])
+            await update.message.reply_text(
+                f"Отменить операцию?\n"
+                f"{emoji} {target_tx['amount']:,.0f} — {target_tx.get('category','')} "
+                f"({target_tx.get('description','')})",
+                reply_markup=kb,
+            )
+
+# ============================================================
+# ОБРАБОТЧИК ВСЕХ КНОПОК
+# ============================================================
+async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    # доступ к кнопкам — тоже только хозяину
     if query.from_user.id != MY_TELEGRAM_ID:
         return
 
-    try:
-        action, token = query.data.split(":", 1)
-    except ValueError:
+    parts = query.data.split(":", 2)
+    if len(parts) != 3 or parts[0] != "q":
         await query.edit_message_text("⚠️ Не понял кнопку.")
         return
+    _, action, token = parts
 
-    key = f"goal_{token}"
-    p = context.bot_data.get(key)
-
-    if p is None:
-        # данные уже использованы или потерялись (например, после перезапуска бота)
-        await query.edit_message_text("⌛ Кнопка устарела. Напиши цель ещё раз, если нужно.")
+    payload = _unstash(context, token)
+    if payload is None:
+        await query.edit_message_text("⌛ Кнопка устарела. Повтори запрос, если нужно.")
         return
 
-    if action == "gadd":
-        goal_id = db.add_goal(p["title"], p["target"], p.get("deadline"))
-        if goal_id is not None:
-            await query.edit_message_text(f"✅ Добавил вторую цель «{p['title']}» на {p['target']:,.0f}.")
+    # --- дубликат цели ---
+    if action == "gdup_add":
+        gid = db.add_goal(payload["title"], payload["target"], payload.get("deadline"))
+        if gid is not None:
+            await query.edit_message_text(f"✅ Добавил вторую цель «{payload['title']}» на {payload['target']:,.0f}.")
         else:
-            await query.edit_message_text("❌ Не получилось добавить цель, попробуй ещё раз.")
-    elif action == "gskip":
-        await query.edit_message_text(f"👌 Ок, не добавляю «{p['title']}».")
+            await query.edit_message_text("❌ Не получилось добавить цель.")
+    elif action == "gdup_skip":
+        await query.edit_message_text(f"👌 Ок, не добавляю «{payload['title']}».")
+
+    # --- цель для пополнения не найдена ---
+    elif action == "gmiss_add":
+        gid = db.add_goal(payload["goal_title"], payload["amount"], None)
+        if gid is not None:
+            db.add_to_goal(gid, payload["amount"])
+            await query.edit_message_text(
+                f"🎯 Создал цель «{payload['goal_title']}» и отложил {payload['amount']:,.0f}.\n"
+                f"⚠️ Целевую сумму не знаю — допиши, например: «цель {payload['goal_title']} 100000»."
+            )
+        else:
+            await query.edit_message_text("❌ Не получилось создать цель.")
+
+    # --- погашение долга, которого нет → записать в расход ---
+    elif action == "repay_exp":
+        db.save_transaction("expense", payload["amount"], "погашение долга",
+                            f"погашение (долг не найден): {payload['person']}")
+        await query.edit_message_text(f"💸 Записал {payload['amount']:,.0f} как расход.")
+
+    # --- возврат долга, которого нет → записать в доход ---
+    elif action == "return_inc":
+        db.save_transaction("income", payload["amount"], "возврат долга",
+                            f"возврат (долг не найден): {payload['person']}")
+        await query.edit_message_text(f"💰 Записал {payload['amount']:,.0f} как доход.")
+
+    # --- отмена операции: подтверждено ---
+    elif action == "cancel_yes":
+        tx = payload.get("tx", {})
+        tx_id = payload.get("tx_id")
+        full = db.get_transaction(tx_id) if tx_id else None
+
+        # если транзакция была связана с долгом — вернуть долгу сумму обратно
+        if full and full.get("debt_id"):
+            debt_id = full["debt_id"]
+            cur_debt = None
+            for d in db.get_debts("active") + db.get_debts("paid"):
+                if d["id"] == debt_id:
+                    cur_debt = d
+                    break
+            if cur_debt is not None:
+                restored = (cur_debt.get("amount") or 0) + (full.get("amount") or 0)
+                try:
+                    dbc = db.get_client()
+                    dbc.table("debts").update({"amount": restored, "status": "active"}).eq("id", debt_id).execute()
+                except Exception as e:
+                    logger.error(f"❌ Ошибка отката долга: {e}")
+
+        # если транзакция была связана с целью — откатить пополнение
+        if full and full.get("goal_id"):
+            db.add_to_goal(full["goal_id"], -(full.get("amount") or 0))
+
+        ok = db.delete_transaction(tx_id) if tx_id else False
+        if ok:
+            emoji = "📥" if tx.get("type") == "income" else "📤"
+            await query.edit_message_text(
+                f"🗑️ Операция отменена:\n{emoji} {tx.get('amount',0):,.0f} — {tx.get('category','')}"
+            )
+        else:
+            await query.edit_message_text("❌ Не удалось отменить операцию.")
+
+    # --- любой отказ ---
+    elif action == "cancel_noop":
+        await query.edit_message_text("👌 Ок, ничего не меняю.")
+
     else:
         await query.edit_message_text("⚠️ Неизвестное действие.")
 
-    # чистим за собой
-    context.bot_data.pop(key, None)
+    _drop(context, token)
 
 # ============================================================
 # ЯДРО ОБРАБОТКИ ТЕКСТА — общее для текста и голоса
@@ -385,60 +645,60 @@ async def goal_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     await _typing(update, context)
 
-    # 1. Один запрос к ИИ — сразу всё: транзакции, профиль, цели, долги
     analysis = ai.analyze_message(text)
 
-    saved_results = []  # строки-подтверждения для пользователя
-    saved_summary_parts = []  # короткая сводка для ИИ (чтобы он не дублировал)
+    saved_results = []
+    saved_summary_parts = []
+    last_tx_id = None  # для кнопки «Отменить» под обычной тратой
 
-    # 2. Транзакции
+    # 1. Обычные транзакции
     for t in analysis["transactions"]:
-        success = db.save_transaction(t["type"], t["amount"], t["category"], t["description"])
-        if success:
+        tx_id = db.save_transaction(t["type"], t["amount"], t["category"], t["description"])
+        if tx_id is not None:
+            last_tx_id = tx_id
             emoji = "📥" if t["type"] == "income" else "📤"
             saved_results.append(f"{emoji} {t['amount']:,.0f} — {t['category']} ({t['description']})")
             saved_summary_parts.append(f"{t['type']} {t['amount']:.0f} ({t['category']})")
         else:
             saved_results.append(f"⚠️ Не удалось записать: {t['amount']:,.0f} — {t['category']}")
 
-    # 3. Профиль
+    # 2. Профиль
     if analysis["profile"]:
         for key, value in analysis["profile"].items():
             db.set_profile(key, value)
         logger.info(f"👤 Обновлён профиль: {analysis['profile']}")
         saved_summary_parts.append("обновлён профиль")
 
-    # 4. Долги — добавляем как есть (без переспроса)
+    # 3. Новые долги (двигают баланс)
     for d in analysis["debts"]:
-        success = db.add_debt(
-            d["direction"], d["person"], d["amount"], d["description"], d.get("due_date")
-        )
-        if success:
-            if d["direction"] == "i_owe":
-                saved_results.append(f"💸 Ты должен {d['person']}: {d['amount']:,.0f}")
-            else:
-                saved_results.append(f"💰 {d['person']} должен тебе: {d['amount']:,.0f}")
-            saved_summary_parts.append(f"долг {d['direction']} {d['person']} {d['amount']:.0f}")
+        line = _create_debt_with_tx(d)
+        saved_results.append(line)
+        saved_summary_parts.append(f"новый долг {d['direction']} {d['person']} {d['amount']:.0f}")
 
-    # 5. Цели — новые сразу, дубликаты в очередь вопросов
+    # 4. Цели (создание) — дубликаты в очередь
     goal_lines, pending_goals = _handle_goals(analysis["goals"])
     saved_results.extend(goal_lines)
-    for line in goal_lines:
+    for _ in goal_lines:
         saved_summary_parts.append("новая цель")
 
-    # 6. Свежий контекст и история (баланс уже актуален после записей)
+    # 5. Действия над существующим
+    action_lines, action_summary, questions = _handle_actions(analysis["actions"])
+    saved_results.extend(action_lines)
+    saved_summary_parts.extend(action_summary)
+
+    # 6. Свежий контекст и история
     ctx = load_context()
     history = db.get_chat_history(20)
     saved_summary = "; ".join(saved_summary_parts)
 
-    # 7. Ответ ИИ — он НЕ дублирует "записал", только живой комментарий
+    # 7. Ответ ИИ
     response = ai.chat_response(
         text, history,
         ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
         saved_summary=saved_summary,
     )
 
-    # 8. Подтверждение записей (наш код) + ответ ИИ
+    # 8. Подтверждение записей + ответ ИИ
     if saved_results:
         response = "Записал:\n" + "\n".join(saved_results) + "\n\n" + response
 
@@ -446,11 +706,29 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     db.save_message("user", text)
     db.save_message("assistant", response)
 
-    await update.message.reply_text(response)
+    # 10. Отправка. Если была ровно одна обычная транзакция и нет вопросов — кнопка «Отменить»
+    reply_markup = None
+    if last_tx_id is not None and len(analysis["transactions"]) == 1 and not questions:
+        t0 = analysis["transactions"][0]
+        token = _stash(context, {
+            "kind": "cancel_confirm",
+            "tx_id": last_tx_id,
+            "tx": {
+                "type": t0["type"],
+                "amount": t0["amount"],
+                "category": t0["category"],
+                "description": t0["description"],
+            },
+        })
+        reply_markup = InlineKeyboardMarkup([[
+            InlineKeyboardButton("↩️ Отменить запись", callback_data=f"q:cancel_yes:{token}")
+        ]])
 
-    # 10. В самом конце — вопросы про дубликаты целей (не задерживают остальное)
-    if pending_goals:
-        await _ask_goal_duplicates(update, context, pending_goals)
+    await update.message.reply_text(response, reply_markup=reply_markup)
+
+    # 11. Переспросы (дубликаты целей + вопросы из actions)
+    if pending_goals or questions:
+        await _ask_questions(update, context, questions, pending_goals)
 
 # ------------------------------------------------------------
 # ТЕКСТОВЫЕ СООБЩЕНИЯ
@@ -478,7 +756,6 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await voice_file.download_to_drive(tmp_path)
         text = ai.transcribe_voice(tmp_path)
     finally:
-        # файл удаляем в любом случае — даже если распознавание упало
         if tmp_path and os.path.exists(tmp_path):
             try:
                 os.remove(tmp_path)
@@ -520,8 +797,8 @@ def main():
     app.add_handler(CommandHandler("advice",     advice))
     app.add_handler(CommandHandler("clear",      clear_history))
 
-    # кнопки по дубликатам целей
-    app.add_handler(CallbackQueryHandler(goal_callback, pattern=r"^g(add|skip):"))
+    # все inline-кнопки идут через единый обработчик (callback_data начинается с "q:")
+    app.add_handler(CallbackQueryHandler(on_button, pattern=r"^q:"))
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
