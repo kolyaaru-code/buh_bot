@@ -32,6 +32,12 @@ MY_TELEGRAM_ID = int(os.getenv("MY_TELEGRAM_ID"))
 # Часовой пояс для отображения дат — Екатеринбург, UTC+5
 LOCAL_TZ = timezone(timedelta(hours=5))
 
+# Категории-метки долговых движений (нужны при ОТМЕНЕ — определить судьбу долга):
+#   создание долга ("выдача долга"/"получен заём")        -> при отмене долг ОБНУЛЯЕМ (reduce_debt)
+#   уменьшение долга ("погашение долга"/"возврат долга")  -> при отмене долг ВОЗВРАЩАЕМ (restore_debt)
+CREATION_DEBT_CATS = {"выдача долга", "получен заём"}
+REDUCTION_DEBT_CATS = {"погашение долга", "возврат долга"}
+
 logging.basicConfig(
     format="%(asctime)s | %(levelname)s | %(message)s",
     level=logging.INFO
@@ -455,7 +461,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
 # ============================================================
 # ПЕРЕСПРОСЫ КНОПКАМИ (в конце, после основного ответа)
 # ============================================================
-async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
+async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
                          questions: list, pending_goals: list):
 
     # дубликаты целей
@@ -465,7 +471,7 @@ async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
             InlineKeyboardButton("✅ Добавить вторую", callback_data=f"q:gdup_add:{token}"),
             InlineKeyboardButton("❌ Не добавлять",   callback_data=f"q:gdup_skip:{token}"),
         ]])
-        await update.message.reply_text(
+        await message.reply_text(
             f"🎯 Цель «{p['title']}» уже есть в списке.\n"
             f"Точно добавить ещё одну на {p['target']:,.0f}?",
             reply_markup=kb,
@@ -480,7 +486,7 @@ async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 InlineKeyboardButton("🎯 Создать цель", callback_data=f"q:gmiss_add:{token}"),
                 InlineKeyboardButton("❌ Отменить",     callback_data=f"q:cancel_noop:{token}"),
             ]])
-            await update.message.reply_text(
+            await message.reply_text(
                 f"Цели «{q['goal_title']}» пока нет. Создать её и сразу отложить {q['amount']:,.0f}?",
                 reply_markup=kb,
             )
@@ -491,7 +497,7 @@ async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 InlineKeyboardButton("💸 Записать в расход", callback_data=f"q:repay_exp:{token}"),
                 InlineKeyboardButton("❌ Не учитывать",      callback_data=f"q:cancel_noop:{token}"),
             ]])
-            await update.message.reply_text(
+            await message.reply_text(
                 f"Долга перед «{q['person']}» не нашёл.\n"
                 f"Записать {q['amount']:,.0f} как обычный расход?",
                 reply_markup=kb,
@@ -503,7 +509,7 @@ async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 InlineKeyboardButton("💰 Записать в доход", callback_data=f"q:return_inc:{token}"),
                 InlineKeyboardButton("❌ Не учитывать",     callback_data=f"q:cancel_noop:{token}"),
             ]])
-            await update.message.reply_text(
+            await message.reply_text(
                 f"Долга «{q['person']} должен мне» не нашёл.\n"
                 f"Записать {q['amount']:,.0f} как доход?",
                 reply_markup=kb,
@@ -524,7 +530,7 @@ async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 target_tx = recent[0] if recent else None
 
             if target_tx is None:
-                await update.message.reply_text("🤔 Не нашёл подходящую операцию для отмены.")
+                await message.reply_text("🤔 Не нашёл подходящую операцию для отмены.")
                 continue
 
             token = _stash(context, {"kind": "cancel_confirm", "tx_id": target_tx["id"], "tx": target_tx})
@@ -533,7 +539,7 @@ async def _ask_questions(update: Update, context: ContextTypes.DEFAULT_TYPE,
                 InlineKeyboardButton("✅ Да, отменить", callback_data=f"q:cancel_yes:{token}"),
                 InlineKeyboardButton("❌ Нет",          callback_data=f"q:cancel_noop:{token}"),
             ]])
-            await update.message.reply_text(
+            await message.reply_text(
                 f"Отменить операцию?\n"
                 f"{emoji} {target_tx['amount']:,.0f} — {target_tx.get('category','')} "
                 f"({target_tx.get('description','')})",
@@ -559,6 +565,24 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     payload = _unstash(context, token)
     if payload is None:
         await query.edit_message_text("⌛ Кнопка устарела. Повтори запрос, если нужно.")
+        return
+
+    # --- подтверждение записи (новая логика: карточка -> запись только по «Да») ---
+    if action == "confirm_yes":
+        pending = payload.get("pending") or {}
+        raw_text = payload.get("raw_text", "")
+        await _commit_analysis(query, context, pending, raw_text)
+        _drop(context, token)
+        return
+    elif action == "confirm_no":
+        await query.edit_message_text("👌 Отменил. В базу ничего не записал.")
+        _drop(context, token)
+        return
+    elif action == "confirm_edit":
+        await query.edit_message_text(
+            "✏️ Хорошо. Напиши или наговори, как правильно — я разберу заново и снова переспрошу."
+        )
+        _drop(context, token)
         return
 
     # --- дубликат цели ---
@@ -601,21 +625,17 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tx_id = payload.get("tx_id")
         full = db.get_transaction(tx_id) if tx_id else None
 
-        # если транзакция была связана с долгом — вернуть долгу сумму обратно
+        # если транзакция была связана с долгом — откатываем ПРАВИЛЬНО по категории:
+        #   создание долга ("выдача долга"/"получен заём")  -> долг обнуляем (reduce_debt)
+        #   уменьшение долга ("погашение"/"возврат")        -> долг возвращаем (restore_debt)
         if full and full.get("debt_id"):
             debt_id = full["debt_id"]
-            cur_debt = None
-            for d in db.get_debts("active") + db.get_debts("paid"):
-                if d["id"] == debt_id:
-                    cur_debt = d
-                    break
-            if cur_debt is not None:
-                restored = (cur_debt.get("amount") or 0) + (full.get("amount") or 0)
-                try:
-                    dbc = db.get_client()
-                    dbc.table("debts").update({"amount": restored, "status": "active"}).eq("id", debt_id).execute()
-                except Exception as e:
-                    logger.error(f"❌ Ошибка отката долга: {e}")
+            cat = full.get("category") or ""
+            amt = full.get("amount") or 0
+            if cat in CREATION_DEBT_CATS:
+                db.reduce_debt(debt_id, amt)
+            elif cat in REDUCTION_DEBT_CATS:
+                db.restore_debt(debt_id, amt)
 
         # если транзакция была связана с целью — откатить пополнение
         if full and full.get("goal_id"):
@@ -642,93 +662,156 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 # ЯДРО ОБРАБОТКИ ТЕКСТА — общее для текста и голоса
 # ============================================================
+def _render_preview(pending: dict) -> str:
+    """Человеческое описание того, что ИИ понял — для карточки подтверждения."""
+    lines = []
+    for t in pending.get("transactions", []):
+        if t["type"] == "expense":
+            lines.append(f"📤 Расход: {t['amount']:,.0f} — {t['category']} ({t['description']})")
+        else:
+            lines.append(f"📥 Доход: {t['amount']:,.0f} — {t['category']} ({t['description']})")
+    for d in pending.get("debts", []):
+        if d["direction"] == "owe_me":
+            lines.append(f"💸 Новый долг: {d['person']} должен тебе {d['amount']:,.0f}")
+        else:
+            lines.append(f"💸 Новый долг: ты должен {d['person']} {d['amount']:,.0f}")
+    for g in pending.get("goals", []):
+        lines.append(f"🎯 Новая цель: «{g['title']}» на {g['target_amount']:,.0f}")
+    for a in pending.get("actions", []):
+        if a["action"] == "goal_deposit":
+            lines.append(f"🐷 В копилку «{a['goal_title']}»: +{a['amount']:,.0f}")
+        elif a["action"] == "debt_repay":
+            lines.append(f"✅ Погашение долга: {a['person']} — {a['amount']:,.0f}")
+        elif a["action"] == "debt_return":
+            lines.append(f"📈 Вернули долг: {a['person']} — {a['amount']:,.0f}")
+    body = "\n".join(f"  {ln}" for ln in lines)
+    return f"🤔 Я понял так:\n{body}\n\nВсё верно?"
+
+
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     await _typing(update, context)
 
     analysis = ai.analyze_message(text)
 
+    # Профиль применяем сразу — это не деньги, подтверждать «меня зовут…» ни к чему.
+    if analysis["profile"]:
+        for key, value in analysis["profile"].items():
+            db.set_profile(key, value)
+        logger.info(f"👤 Обновлён профиль: {analysis['profile']}")
+
+    # Действия делим: «отмена» — свой отдельный переспрос, её НЕ заворачиваем в карточку.
+    write_actions = [a for a in analysis["actions"]
+                     if a["action"] in ("goal_deposit", "debt_repay", "debt_return")]
+    cancel_actions = [a for a in analysis["actions"] if a["action"] == "cancel"]
+
+    # Есть ли что записывать — то, что нужно подтвердить карточкой?
+    needs_card = bool(
+        analysis["transactions"] or analysis["goals"] or analysis["debts"] or write_actions
+    )
+
+    if needs_card:
+        pending = {
+            "transactions": analysis["transactions"],
+            "goals":        analysis["goals"],
+            "debts":        analysis["debts"],
+            "actions":      write_actions,
+        }
+        token = _stash(context, {"kind": "confirm", "pending": pending, "raw_text": text})
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("✅ Да", callback_data=f"q:confirm_yes:{token}")],
+            [InlineKeyboardButton("✏️ Исправить", callback_data=f"q:confirm_edit:{token}"),
+             InlineKeyboardButton("❌ Нет",       callback_data=f"q:confirm_no:{token}")],
+        ])
+        await update.message.reply_text(_render_preview(pending), reply_markup=kb)
+
+        # редкий случай: в одном сообщении и запись, и «отмени» — покажем отмену отдельно
+        if cancel_actions:
+            _, _, questions = _handle_actions(cancel_actions)
+            await _ask_questions(update.message, context, questions, [])
+        return
+
+    # Записывать нечего. Возможно, только «отмени».
+    if cancel_actions:
+        _, _, questions = _handle_actions(cancel_actions)
+        await _ask_questions(update.message, context, questions, [])
+        return
+
+    # Ни записи, ни отмены — обычный разговор (или только профиль). Отвечает ИИ.
+    ctx = load_context()
+    history = db.get_chat_history(20)
+    saved_summary = "обновлён профиль" if analysis["profile"] else ""
+    response = ai.chat_response(
+        text, history,
+        ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
+        saved_summary=saved_summary,
+    )
+    db.save_message("user", text)
+    db.save_message("assistant", response)
+    await update.message.reply_text(response)
+
+
+async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: dict, raw_text: str):
+    """
+    Реальная запись в базу — вызывается ТОЛЬКО после нажатия «✅ Да».
+    pending = {"transactions": [...], "goals": [...], "debts": [...], "actions": [...]}.
+    Профиль применяется раньше (до карточки), отмена сюда не попадает.
+    """
     saved_results = []
     saved_summary_parts = []
-    last_tx_id = None  # для кнопки «Отменить» под обычной тратой
 
     # 1. Обычные транзакции
-    for t in analysis["transactions"]:
+    for t in pending.get("transactions", []):
         tx_id = db.save_transaction(t["type"], t["amount"], t["category"], t["description"])
         if tx_id is not None:
-            last_tx_id = tx_id
             emoji = "📥" if t["type"] == "income" else "📤"
             saved_results.append(f"{emoji} {t['amount']:,.0f} — {t['category']} ({t['description']})")
             saved_summary_parts.append(f"{t['type']} {t['amount']:.0f} ({t['category']})")
         else:
             saved_results.append(f"⚠️ Не удалось записать: {t['amount']:,.0f} — {t['category']}")
 
-    # 2. Профиль
-    if analysis["profile"]:
-        for key, value in analysis["profile"].items():
-            db.set_profile(key, value)
-        logger.info(f"👤 Обновлён профиль: {analysis['profile']}")
-        saved_summary_parts.append("обновлён профиль")
-
-    # 3. Новые долги (двигают баланс)
-    for d in analysis["debts"]:
+    # 2. Новые долги (двигают баланс)
+    for d in pending.get("debts", []):
         line = _create_debt_with_tx(d)
         saved_results.append(line)
         saved_summary_parts.append(f"новый долг {d['direction']} {d['person']} {d['amount']:.0f}")
 
-    # 4. Цели (создание) — дубликаты в очередь
-    goal_lines, pending_goals = _handle_goals(analysis["goals"])
+    # 3. Цели (создание) — дубликаты уводим в переспрос
+    goal_lines, pending_goals = _handle_goals(pending.get("goals", []))
     saved_results.extend(goal_lines)
     for _ in goal_lines:
         saved_summary_parts.append("новая цель")
 
-    # 5. Действия над существующим
-    action_lines, action_summary, questions = _handle_actions(analysis["actions"])
+    # 4. Действия над существующим (пополнение цели / погашение / возврат долга)
+    action_lines, action_summary, questions = _handle_actions(pending.get("actions", []))
     saved_results.extend(action_lines)
     saved_summary_parts.extend(action_summary)
 
-    # 6. Свежий контекст и история
+    # 5. Свежий контекст, история, ответ ИИ
     ctx = load_context()
     history = db.get_chat_history(20)
     saved_summary = "; ".join(saved_summary_parts)
-
-    # 7. Ответ ИИ
     response = ai.chat_response(
-        text, history,
+        raw_text, history,
         ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
         saved_summary=saved_summary,
     )
-
-    # 8. Подтверждение записей + ответ ИИ
     if saved_results:
-        response = "Записал:\n" + "\n".join(saved_results) + "\n\n" + response
+        response = "✅ Записал:\n" + "\n".join(saved_results) + "\n\n" + response
 
-    # 9. Сохраняем диалог
-    db.save_message("user", text)
+    # 6. Сохраняем диалог
+    db.save_message("user", raw_text)
     db.save_message("assistant", response)
 
-    # 10. Отправка. Если была ровно одна обычная транзакция и нет вопросов — кнопка «Отменить»
-    reply_markup = None
-    if last_tx_id is not None and len(analysis["transactions"]) == 1 and not questions:
-        t0 = analysis["transactions"][0]
-        token = _stash(context, {
-            "kind": "cancel_confirm",
-            "tx_id": last_tx_id,
-            "tx": {
-                "type": t0["type"],
-                "amount": t0["amount"],
-                "category": t0["category"],
-                "description": t0["description"],
-            },
-        })
-        reply_markup = InlineKeyboardMarkup([[
-            InlineKeyboardButton("↩️ Отменить запись", callback_data=f"q:cancel_yes:{token}")
-        ]])
+    # 7. Заменяем карточку «Я понял так…» на итог
+    try:
+        await query.edit_message_text(response)
+    except Exception as e:
+        logger.error(f"❌ Не смог отредактировать карточку: {e}")
+        await query.message.reply_text(response)
 
-    await update.message.reply_text(response, reply_markup=reply_markup)
-
-    # 11. Переспросы (дубликаты целей + вопросы из actions)
+    # 8. Переспросы (дубликаты целей + цель/долг не найдены)
     if pending_goals or questions:
-        await _ask_questions(update, context, questions, pending_goals)
+        await _ask_questions(query.message, context, questions, pending_goals)
 
 # ------------------------------------------------------------
 # ТЕКСТОВЫЕ СООБЩЕНИЯ
