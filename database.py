@@ -437,6 +437,33 @@ def reduce_debt(debt_id: int, amount: float) -> dict | None:
         logger.error(f"❌ Ошибка уменьшения долга: {e}")
         return None
 
+def restore_debt(debt_id: int, amount: float) -> dict | None:
+    """
+    Возвращает долгу сумму обратно (прибавляет amount) и снова делает его активным.
+    Используется при ОТМЕНЕ транзакции погашения/возврата долга —
+    то есть когда мы откатываем УМЕНЬШЕНИЕ долга и он должен ожить.
+    Возвращает обновлённый долг {..., amount, status} или None.
+    """
+    try:
+        db = get_client()
+        cur = db.table("debts").select("*").eq("id", debt_id).execute()
+        if not cur.data:
+            logger.error(f"❌ Долг id={debt_id} не найден для восстановления")
+            return None
+        debt = cur.data[0]
+        new_amount = (debt.get("amount") or 0) + amount
+        db.table("debts").update(
+            {"amount": new_amount, "status": "active"}
+        ).eq("id", debt_id).execute()
+        debt["amount"] = new_amount
+        debt["status"] = "active"
+        logger.info(f"💸 Долг id={debt_id} восстановлен: +{amount} → {new_amount} (снова активен)")
+        return debt
+    except Exception as e:
+        logger.error(f"❌ Ошибка восстановления долга: {e}")
+        return None
+
+
 # ============================================================
 # ИСТОРИЯ ДИАЛОГА — хранится в базе, не в памяти!
 # ============================================================
