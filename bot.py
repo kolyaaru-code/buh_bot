@@ -9,6 +9,7 @@ import os
 import logging
 import uuid
 import tempfile
+import re
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -562,6 +563,11 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     _, action, token = parts
 
+    # Кнопки черновика операции — состояние в user_data, токен не нужен.
+    if action.startswith("draft_"):
+        await _on_draft_button(query, context, action)
+        return
+
     payload = _unstash(context, token)
     if payload is None:
         await query.edit_message_text("⌛ Кнопка устарела. Повтори запрос, если нужно.")
@@ -579,10 +585,31 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _drop(context, token)
         return
     elif action == "confirm_edit":
-        await query.edit_message_text(
-            "✏️ Хорошо. Напиши или наговори, как правильно — я разберу заново и снова переспрошу."
-        )
+        pending = payload.get("pending") or {}
+        txs = pending.get("transactions") or []
+        has_other = bool((pending.get("goals") or []) or (pending.get("debts") or [])
+                         or (pending.get("actions") or []))
         _drop(context, token)
+        if len(txs) == 1 and not has_other:
+            # одиночная транзакция -> редактируемый черновик с кнопками полей
+            t = txs[0]
+            context.user_data["draft"] = {
+                "type":            t.get("type"),
+                "amount":          t.get("amount"),
+                "category":        t.get("category"),
+                "description":     t.get("description"),
+                "awaiting":        None,
+                "card_chat_id":    query.message.chat_id,
+                "card_message_id": query.message.message_id,
+            }
+            await query.edit_message_text(
+                _render_draft(context.user_data["draft"]), reply_markup=_draft_kb()
+            )
+        else:
+            # цель/долг/несколько операций — правку полями пока не делаем, просим переписать
+            await query.edit_message_text(
+                "✏️ Хорошо. Напиши или наговори операцию заново — я разберу и переспрошу."
+            )
         return
 
     # --- дубликат цели ---
@@ -662,6 +689,204 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 # ЯДРО ОБРАБОТКИ ТЕКСТА — общее для текста и голоса
 # ============================================================
+# ============================================================
+# ЧЕРНОВИК ОПЕРАЦИИ (кнопки полей)
+# Одна машина на два случая:
+#   1) разбор пустой, но есть сигнал операции (цифра/слово-действие) — уточняем;
+#   2) «Исправить» у готовой операции — правим поля.
+#
+# ⚠️ СОСТОЯНИЕ ЧЕРНОВИКА ЖИВЁТ В ПАМЯТИ (context.user_data), НЕ в базе!
+#    При перезапуске бота посреди правки черновик теряется (данные НЕ портятся —
+#    бот просто попросит начать заново). Для МУЛЬТИПОЛЬЗОВАТЕЛЬСКОЙ версии это
+#    состояние НАДО ПЕРЕНЕСТИ В БД (иначе на многих людях перезапуск = потеря правок).
+#    Пометка оставлена специально, чтобы не забыть при заходе на user_id.
+# ============================================================
+
+_EXPENSE_WORDS = (
+    "потратил", "потратила", "потрачено", "потратили", "купил", "купила", "купили",
+    "заплатил", "заплатила", "оплатил", "оплатила", "истратил", "спустил", "расход",
+)
+_INCOME_WORDS = (
+    "получил", "получила", "получили", "зарплата", "зарплату", "аванс", "премия",
+    "премию", "доход", "заработал", "заработала", "пришло", "поступило", "поступила",
+)
+
+
+def _has_operation_signal(text: str) -> bool:
+    """Похоже ли сообщение на попытку записать операцию: есть цифра ИЛИ слово-действие."""
+    s = (text or "").lower()
+    if re.search(r"\d", s):
+        return True
+    return any(w in s for w in _EXPENSE_WORDS) or any(w in s for w in _INCOME_WORDS)
+
+
+def _infer_type(text: str):
+    """Пытаемся понять тип: 'expense' / 'income' / None (по словам-сигналам)."""
+    s = (text or "").lower()
+    if any(w in s for w in _EXPENSE_WORDS):
+        return "expense"
+    if any(w in s for w in _INCOME_WORDS):
+        return "income"
+    return None
+
+
+def _parse_amount(text: str):
+    """Достаёт первое число из текста. Понимает '200 000', '200000', '200 тысяч'. Иначе None."""
+    s = (text or "").lower()
+    for junk in ("рублей", "рубля", "руб.", "руб", "₽", "rub"):
+        s = s.replace(junk, "")
+    m = re.search(r"\d[\d\s\u00a0.,]*", s)
+    if not m:
+        return None
+    raw = m.group(0)
+    mult = 1
+    tail = s[m.end():m.end() + 12]
+    if re.search(r"^\s*(тысяч|тысячи|тысяча|тыс|k|к)\b", tail):
+        mult = 1000
+    raw = raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
+    if raw.count(".") > 1:                 # '200.000' как разделители тысяч -> убираем точки
+        raw = raw.replace(".", "")
+    try:
+        val = float(raw) * mult
+    except ValueError:
+        return None
+    return val if val > 0 else None
+
+
+def _render_draft(draft: dict) -> str:
+    """Текст карточки-черновика с текущими значениями полей."""
+    t = draft.get("type")
+    type_str = "📤 Расход" if t == "expense" else "📥 Доход" if t == "income" else "— не указан"
+    amount = draft.get("amount")
+    amount_str = f"{amount:,.0f}" if amount is not None else "— не указана"
+    cat = draft.get("category") or "— не указана"
+    desc = draft.get("description") or "—"
+    return (
+        "🧾 Черновик операции\n"
+        "─────────────\n"
+        f"Тип: {type_str}\n"
+        f"Сумма: {amount_str}\n"
+        f"Категория: {cat}\n"
+        f"Описание: {desc}\n\n"
+        "Заполни недостающее кнопками и нажми «✅ Готово»."
+    )
+
+
+def _draft_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("📤↔📥 Сменить тип", callback_data="q:draft_type:-")],
+        [InlineKeyboardButton("✏️ Сумма",      callback_data="q:draft_ask_amount:-"),
+         InlineKeyboardButton("🏷️ Категория",  callback_data="q:draft_ask_category:-")],
+        [InlineKeyboardButton("📝 Описание",    callback_data="q:draft_ask_desc:-")],
+        [InlineKeyboardButton("✅ Готово",      callback_data="q:draft_done:-"),
+         InlineKeyboardButton("❌ Отмена",      callback_data="q:draft_cancel:-")],
+    ])
+
+
+async def _send_draft_card(message, context: ContextTypes.DEFAULT_TYPE):
+    """Отправляет карточку-черновик и запоминает её id, чтобы обновлять на месте."""
+    draft = context.user_data.get("draft")
+    if not draft:
+        return
+    sent = await message.reply_text(_render_draft(draft), reply_markup=_draft_kb())
+    draft["card_chat_id"] = sent.chat_id
+    draft["card_message_id"] = sent.message_id
+
+
+async def _refresh_draft_card(context: ContextTypes.DEFAULT_TYPE):
+    """Обновляет ранее отправленную карточку-черновик (после ввода значения словом)."""
+    draft = context.user_data.get("draft")
+    if not draft:
+        return
+    cid = draft.get("card_chat_id")
+    mid = draft.get("card_message_id")
+    if not cid or not mid:
+        return
+    try:
+        await context.bot.edit_message_text(
+            chat_id=cid, message_id=mid,
+            text=_render_draft(draft), reply_markup=_draft_kb(),
+        )
+    except Exception as e:
+        logger.error(f"❌ Не смог обновить карточку черновика: {e}")
+
+
+async def _apply_draft_field(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    """Применяет присланный текст как значение поля, которое ждали (awaiting)."""
+    draft = context.user_data.get("draft")
+    if not draft:
+        return
+    field = draft.get("awaiting")
+
+    if field == "amount":
+        amt = _parse_amount(text)
+        if amt is None:
+            await update.message.reply_text(
+                "🤔 Не вижу число. Пришли сумму цифрами (например: 500), "
+                "или нажми «❌ Отмена» на карточке."
+            )
+            return  # остаёмся в ожидании суммы
+        draft["amount"] = amt
+    elif field == "category":
+        draft["category"] = text.strip()
+    elif field == "description":
+        draft["description"] = text.strip()
+
+    draft["awaiting"] = None
+    await _refresh_draft_card(context)
+    await update.message.reply_text("✅ Обновил. Проверь карточку выше и нажми «✅ Готово».")
+
+
+async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: str):
+    """Кнопки карточки-черновика. Состояние — в context.user_data['draft']."""
+    draft = context.user_data.get("draft")
+    if not draft:
+        await query.edit_message_text("⌛ Черновик не найден. Начни операцию заново.")
+        return
+
+    if action == "draft_type":
+        t = draft.get("type")
+        draft["type"] = "income" if t == "expense" else "expense"   # None -> expense
+        await query.edit_message_text(_render_draft(draft), reply_markup=_draft_kb())
+
+    elif action == "draft_ask_amount":
+        draft["awaiting"] = "amount"
+        await query.message.reply_text("✏️ Отправь сумму числом (например: 500).")
+    elif action == "draft_ask_category":
+        draft["awaiting"] = "category"
+        await query.message.reply_text("🏷️ Напиши категорию словом (например: еда, транспорт, зарплата).")
+    elif action == "draft_ask_desc":
+        draft["awaiting"] = "description"
+        await query.message.reply_text("📝 Напиши короткое описание (например: обед в кафе).")
+
+    elif action == "draft_done":
+        missing = []
+        if draft.get("type") is None:
+            missing.append("тип")
+        if draft.get("amount") is None:
+            missing.append("сумму")
+        if missing:
+            await query.edit_message_text(
+                _render_draft(draft) + f"\n\n⚠️ Укажи {' и '.join(missing)} — без этого не запишу.",
+                reply_markup=_draft_kb(),
+            )
+            return
+        tx = {
+            "type":        draft["type"],
+            "amount":      draft["amount"],
+            "category":    draft.get("category") or "другое",
+            "description": draft.get("description") or "",
+        }
+        pending = {"transactions": [tx], "goals": [], "debts": [], "actions": []}
+        raw_text = draft.get("description") or f"{tx['type']} {tx['amount']:.0f}"
+        context.user_data.pop("draft", None)
+        await _commit_analysis(query, context, pending, raw_text)
+
+    elif action == "draft_cancel":
+        context.user_data.pop("draft", None)
+        await query.edit_message_text("👌 Отменил, ничего не записал.")
+
+
 def _render_preview(pending: dict) -> str:
     """Человеческое описание того, что ИИ понял — для карточки подтверждения."""
     lines = []
@@ -690,6 +915,14 @@ def _render_preview(pending: dict) -> str:
 
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     await _typing(update, context)
+
+    # 0. Если для черновика операции мы ждём значение поля — присланный текст трактуем
+    #    как ЗНАЧЕНИЕ этого поля, а не как новую операцию (иначе «20» после кнопки «Сумма»
+    #    распарсится как отдельное сообщение). Команды сюда не попадают — они всегда работают.
+    draft = context.user_data.get("draft")
+    if draft and draft.get("awaiting"):
+        await _apply_draft_field(update, context, text)
+        return
 
     analysis = ai.analyze_message(text)
 
@@ -736,7 +969,21 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         await _ask_questions(update.message, context, questions, [])
         return
 
-    # Ни записи, ни отмены — обычный разговор (или только профиль). Отвечает ИИ.
+    # НОВОЕ: разбор пустой, но в сообщении есть СИГНАЛ операции (цифра или слово-действие).
+    # Значит человек имел в виду трату/доход, но чего-то не хватило (типа или суммы).
+    # НЕ зовём болтливый ИИ (он бы соврал «записал»), а поднимаем ЧЕРНОВИК на кнопках.
+    if _has_operation_signal(text):
+        context.user_data["draft"] = {
+            "type":        _infer_type(text),
+            "amount":      _parse_amount(text),
+            "category":    None,
+            "description": None,
+            "awaiting":    None,
+        }
+        await _send_draft_card(update.message, context)
+        return
+
+    # Иначе — обычный разговор (или только профиль). Отвечает ИИ.
     ctx = load_context()
     history = db.get_chat_history(20)
     saved_summary = "обновлён профиль" if analysis["profile"] else ""
