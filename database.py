@@ -1,7 +1,22 @@
 # ============================================================
 # DATABASE.PY — всё общение с базой данных
-# Версия 3: + отмена транзакций, пополнение целей,
-# движение долгов через транзакции (баланс = живые деньги).
+# Версия 3.1 (Этап A): модель ЦЕЛЕЙ = «резерв».
+#   • вклад в цель журналируется маркерной транзакцией (К9)
+#   • жизненный цикл цели: complete (покупкой) / withdraw (без траты) (К8)
+#   • защита от каскадной отмены долга (К10)
+#   • hard_reset_all() для команды /reset
+#
+# МОДЕЛЬ «РЕЗЕРВ» (важно понимать всю математику):
+#   Баланс — это ВСЕ живые деньги. Накопления на цель (saved_amount)
+#   ФИЗИЧЕСКИ ЛЕЖАТ ВНУТРИ баланса — это не отдельный кошелёк, а лишь
+#   виртуальная пометка «эти деньги я мысленно отложил».
+#   Поэтому:
+#     • вклад в цель      → баланс НЕ меняется, растёт только saved_amount;
+#                           «свободно» = баланс − сумма всех saved_amount.
+#     • покупка цели      → обычный расход (баланс падает) + снимаем резерв
+#                           (saved_amount уменьшается) — атомарно, без задвоения.
+#     • закрытие без траты → просто снять пометку (saved_amount → 0),
+#                           баланс не трогаем, деньги «сами» станут свободными.
 # ============================================================
 
 import os
@@ -26,6 +41,21 @@ DEBT_CATEGORIES = {
     "получен заём",     # взял в долг → доход
     "погашение долга",  # я вернул/погасил → расход
 }
+
+# ------------------------------------------------------------
+# МЕТКА-КАТЕГОРИЯ для вклада в цель (модель «резерв», К9).
+# Вклад в копилку — это НЕ трата: живые деньги никуда не ушли,
+# они просто «помечены» как отложенные. Поэтому такая транзакция
+# ДОЛЖНА исключаться из баланса, месячной статистики и категорий.
+# Нужна она только чтобы вклад был ВИДЕН в истории и его можно
+# было ОТМЕНИТЬ (раньше saved_amount менялся без следа).
+# ------------------------------------------------------------
+GOAL_DEPOSIT_CATEGORY = "в копилку"
+GOAL_CATEGORIES = {GOAL_DEPOSIT_CATEGORY}
+
+# Всё, что НЕ считается живым доходом/расходом: долговые движения + копилка.
+# Единый фильтр для баланса и статистики.
+NON_CASH_CATEGORIES = DEBT_CATEGORIES | GOAL_CATEGORIES
 
 # ------------------------------------------------------------
 # ЧАСОВОЙ ПОЯС — Екатеринбург, UTC+5
@@ -122,17 +152,32 @@ def get_recent_transactions_full(limit: int = 10) -> list:
         return []
 
 def get_stats() -> dict:
+    """
+    Общая статистика по ЖИВЫМ деньгам.
+    Вклады в копилку (GOAL_CATEGORIES) исключаем: это не трата и не доход,
+    деньги остаются в балансе, просто помечены как отложенные.
+    Долговые движения В балансе УЧАСТВУЮТ (это реальное движение денег),
+    поэтому здесь их НЕ исключаем — только копилку.
+    """
     try:
         db = get_client()
-        result = db.table("transactions").select("type, amount").execute()
+        result = db.table("transactions").select("type, amount, category").execute()
         rows = result.data
-        total_income  = sum((r["amount"] or 0) for r in rows if r["type"] == "income")
-        total_expense = sum((r["amount"] or 0) for r in rows if r["type"] == "expense")
+        total_income = sum(
+            (r["amount"] or 0) for r in rows
+            if r["type"] == "income" and (r.get("category") not in GOAL_CATEGORIES)
+        )
+        total_expense = sum(
+            (r["amount"] or 0) for r in rows
+            if r["type"] == "expense" and (r.get("category") not in GOAL_CATEGORIES)
+        )
+        # count — только «живые» операции, чтобы служебные вклады не мозолили глаза
+        count = sum(1 for r in rows if r.get("category") not in GOAL_CATEGORIES)
         return {
             "income":  total_income,
             "expense": total_expense,
             "balance": total_income - total_expense,
-            "count":   len(rows),
+            "count":   count,
         }
     except Exception as e:
         logger.error(f"❌ Ошибка получения статистики: {e}")
@@ -166,8 +211,8 @@ def get_expenses_by_category() -> dict:
         categories = {}
         for row in rows:
             cat = row["category"] or "Без категории"
-            # долговые движения не показываем среди обычных трат
-            if cat in DEBT_CATEGORIES:
+            # долговые движения и вклады в копилку не показываем среди обычных трат
+            if cat in NON_CASH_CATEGORIES:
                 continue
             categories[cat] = categories.get(cat, 0) + (row["amount"] or 0)
         return dict(sorted(categories.items(), key=lambda x: x[1], reverse=True))
@@ -187,18 +232,26 @@ def get_monthly_stats() -> dict:
 
         result = (
             db.table("transactions")
-            .select("type, amount")
+            .select("type, amount, category")
             .gte("created_at", month_start_iso)
             .execute()
         )
         rows = result.data
-        total_income  = sum((r["amount"] or 0) for r in rows if r["type"] == "income")
-        total_expense = sum((r["amount"] or 0) for r in rows if r["type"] == "expense")
+        # Вклады в копилку исключаем (не живые деньги), долги учитываем.
+        total_income = sum(
+            (r["amount"] or 0) for r in rows
+            if r["type"] == "income" and (r.get("category") not in GOAL_CATEGORIES)
+        )
+        total_expense = sum(
+            (r["amount"] or 0) for r in rows
+            if r["type"] == "expense" and (r.get("category") not in GOAL_CATEGORIES)
+        )
+        count = sum(1 for r in rows if r.get("category") not in GOAL_CATEGORIES)
         return {
             "income":  total_income,
             "expense": total_expense,
             "balance": total_income - total_expense,
-            "count":   len(rows),
+            "count":   count,
             "month":   f"{RU_MONTHS[now.month]} {now.year}",
         }
     except Exception as e:
@@ -236,7 +289,7 @@ def set_profile(key: str, value: str) -> bool:
         return False
 
 # ============================================================
-# ЦЕЛИ
+# ЦЕЛИ (модель «резерв»)
 # ============================================================
 
 def get_goals(status: str = "active") -> list:
@@ -253,6 +306,18 @@ def get_goals(status: str = "active") -> list:
     except Exception as e:
         logger.error(f"❌ Ошибка получения целей: {e}")
         return []
+
+def get_goal(goal_id: int) -> dict | None:
+    """Получить одну цель по id (в любом статусе)."""
+    try:
+        db = get_client()
+        result = db.table("goals").select("*").eq("id", goal_id).execute()
+        if result.data and len(result.data) > 0:
+            return result.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения цели: {e}")
+        return None
 
 def find_goal_by_title(title: str, status: str = "active") -> dict | None:
     """
@@ -292,23 +357,43 @@ def get_saved_in_goals(status: str = "active") -> float:
         logger.error(f"❌ Ошибка подсчёта копилки: {e}")
         return 0
 
-def add_to_goal(goal_id: int, amount: float) -> dict | None:
+def add_to_goal(goal_id: int, amount: float, journal: bool = False,
+                description: str = None) -> dict | None:
     """
-    Пополняет цель на amount (прибавляет к saved_amount).
-    Возвращает обновлённую цель {title, saved_amount, target_amount} или None.
+    Пополняет цель на amount (прибавляет к saved_amount). Может уйти в минус
+    при откате (amount < 0) — тогда saved_amount не опускаем ниже нуля.
+
+    journal=True  → ДОПОЛНИТЕЛЬНО пишет маркерную транзакцию «в копилку»
+                    с goal_id (К9): вклад становится виден в истории и его
+                    можно отменить. Баланс от этой транзакции НЕ страдает —
+                    категория «в копилку» исключена из get_stats/monthly.
+    journal=False → только двигает saved_amount, транзакцию НЕ пишет
+                    (используется для ОТКАТА при отмене — там транзакция
+                    уже удаляется отдельно, второй раз журналить не нужно).
+
+    Возвращает обновлённую цель или None.
     """
     try:
         db = get_client()
-        # читаем текущее накопленное
         cur = db.table("goals").select("*").eq("id", goal_id).execute()
         if not cur.data:
             logger.error(f"❌ Цель id={goal_id} не найдена для пополнения")
             return None
         goal = cur.data[0]
         new_saved = (goal.get("saved_amount") or 0) + amount
+        if new_saved < 0:
+            new_saved = 0  # защита от отрицательной копилки при откате
         db.table("goals").update({"saved_amount": new_saved}).eq("id", goal_id).execute()
-        logger.info(f"🎯 Цель пополнена: id={goal_id} +{amount} → {new_saved}")
+        logger.info(f"🎯 Цель id={goal_id}: saved {amount:+} → {new_saved}")
         goal["saved_amount"] = new_saved
+
+        if journal and amount > 0:
+            desc = description or f"в копилку: {goal.get('title', '')}"
+            # тип "expense" — техническая условность (в копилку = деньги «уходят»
+            # из свободных), но категория GOAL_DEPOSIT_CATEGORY исключает её из
+            # баланса и статистики, так что на цифры это НЕ влияет.
+            save_transaction("expense", amount, GOAL_DEPOSIT_CATEGORY,
+                             desc, goal_id=goal_id)
         return goal
     except Exception as e:
         logger.error(f"❌ Ошибка пополнения цели: {e}")
@@ -329,6 +414,87 @@ def add_goal(title: str, target_amount: float, deadline: str = None) -> int | No
     except Exception as e:
         logger.error(f"❌ Ошибка добавления цели: {e}")
         return None
+
+def complete_goal(goal_id: int, spent_amount: float, description: str = None) -> dict | None:
+    """
+    ЗАКРЫТЬ ЦЕЛЬ ПОКУПКОЙ (К8, сценарий «накопил и купил»).
+
+    Модель «резерв»: накопленные деньги всё это время лежали в балансе.
+    Покупка — это реальный расход, поэтому здесь мы:
+      1) пишем транзакцию-РАСХОД на spent_amount (баланс падает по-настоящему),
+         привязанную к goal_id и с ЖИВОЙ категорией "техника"/"другое" — она
+         УЧАСТВУЕТ в балансе (это не служебная «в копилку»!);
+      2) снимаем резерв: цель → status "completed", saved_amount обнуляем.
+
+    Итог: и баланс, и резерв уменьшились ОДНИМ действием — задвоения нет.
+    Возвращает {"goal": ..., "tx_id": ...} или None.
+
+    ВАЖНО: сам расход тут НЕ создаём вслепую — категорию расхода определяет
+    вызывающий код (bot.py) из исходной фразы пользователя. Эта функция
+    только помечает цель завершённой и возвращает данные; транзакцию расхода
+    bot.py уже записал ДО вызова и передал сюда её tx_id для привязки.
+    Такой порядок держит всю логику «что за расход» в одном месте (bot.py).
+    """
+    try:
+        db = get_client()
+        cur = db.table("goals").select("*").eq("id", goal_id).execute()
+        if not cur.data:
+            logger.error(f"❌ Цель id={goal_id} не найдена для завершения")
+            return None
+        goal = cur.data[0]
+        db.table("goals").update(
+            {"status": "completed", "saved_amount": 0}
+        ).eq("id", goal_id).execute()
+        goal["status"] = "completed"
+        goal["saved_amount"] = 0
+        logger.info(f"🏁 Цель id={goal_id} «{goal.get('title','')}» завершена покупкой на {spent_amount}")
+        return goal
+    except Exception as e:
+        logger.error(f"❌ Ошибка завершения цели: {e}")
+        return None
+
+def withdraw_goal(goal_id: int) -> dict | None:
+    """
+    ЗАКРЫТЬ ЦЕЛЬ БЕЗ ТРАТЫ (К8, сценарий «передумал копить»).
+
+    Модель «резерв»: деньги всё это время лежали в балансе, отдельного
+    кошелька нет. Поэтому «вернуть» физически нечего — достаточно СНЯТЬ
+    ПОМЕТКУ: saved_amount → 0, статус → "withdrawn". Освободившаяся сумма
+    автоматически снова станет «свободной» (свободно = баланс − Σsaved).
+    Баланс НЕ трогаем, никаких транзакций НЕ пишем.
+
+    Возвращает {..., "released": <сколько было в копилке>} или None.
+    """
+    try:
+        db = get_client()
+        cur = db.table("goals").select("*").eq("id", goal_id).execute()
+        if not cur.data:
+            logger.error(f"❌ Цель id={goal_id} не найдена для закрытия")
+            return None
+        goal = cur.data[0]
+        released = goal.get("saved_amount") or 0
+        db.table("goals").update(
+            {"status": "withdrawn", "saved_amount": 0}
+        ).eq("id", goal_id).execute()
+        goal["status"] = "withdrawn"
+        goal["saved_amount"] = 0
+        goal["released"] = released
+        logger.info(f"🚪 Цель id={goal_id} «{goal.get('title','')}» закрыта без траты, освобождено {released}")
+        return goal
+    except Exception as e:
+        logger.error(f"❌ Ошибка закрытия цели: {e}")
+        return None
+
+def reopen_goal(goal_id: int, status: str = "active") -> bool:
+    """Вернуть цель в активные (для ОТМЕНЫ завершения/закрытия цели)."""
+    try:
+        db = get_client()
+        db.table("goals").update({"status": status}).eq("id", goal_id).execute()
+        logger.info(f"↩️ Цель id={goal_id} снова {status}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка возврата цели в активные: {e}")
+        return False
 
 def update_goal_progress(goal_id: int, saved_amount: float) -> bool:
     try:
@@ -387,6 +553,38 @@ def close_debt(debt_id: int) -> bool:
     except Exception as e:
         logger.error(f"❌ Ошибка закрытия долга: {e}")
         return False
+
+def delete_debt(debt_id: int) -> bool:
+    """Удаляет долг по id (для отмены создания долга)."""
+    try:
+        db = get_client()
+        db.table("debts").delete().eq("id", debt_id).execute()
+        logger.info(f"🗑️ Долг удалён: id={debt_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления долга: {e}")
+        return False
+
+def count_debt_transactions(debt_id: int) -> int:
+    """
+    Сколько транзакций привязано к долгу (К10).
+    Нужно перед ОТМЕНОЙ транзакции-создания долга: если по долгу уже были
+    погашения/возвраты (то есть транзакций > 1), простая отмена создаст
+    рассинхрон (деньги «из воздуха», исчезнувший долг). bot.py по этому
+    числу решает — можно молча отменить или надо предупредить пользователя.
+    """
+    try:
+        db = get_client()
+        result = (
+            db.table("transactions")
+            .select("id")
+            .eq("debt_id", debt_id)
+            .execute()
+        )
+        return len(result.data or [])
+    except Exception as e:
+        logger.error(f"❌ Ошибка подсчёта транзакций долга: {e}")
+        return 0
 
 def find_debt_by_person(person: str, direction: str = None, status: str = "active") -> dict | None:
     """
@@ -511,3 +709,36 @@ def clear_chat_history() -> bool:
     except Exception as e:
         logger.error(f"❌ Ошибка очистки истории: {e}")
         return False
+
+
+# ============================================================
+# HARD RESET — полное обнуление для чистого теста «с нуля» (/reset)
+# ============================================================
+
+def hard_reset_all() -> dict:
+    """
+    Стирает ВСЕ пользовательские данные во всех таблицах: транзакции, цели,
+    долги, историю диалога и профиль. Возвращает отчёт {table: ok/err}.
+
+    ⚠️ НЕОБРАТИМО. Вызывать только после ЯВНОГО двойного подтверждения в bot.py.
+    Схему таблиц НЕ трогает — только строки. id-последовательности не сбрасывает
+    (новые записи продолжат нумерацию дальше — это нормально и не мешает).
+    """
+    report = {}
+    # created_at есть во всех этих таблицах → единый безопасный предикат.
+    tables = ["transactions", "goals", "debts", "chat_history", "user_profile"]
+    try:
+        db = get_client()
+        for t in tables:
+            try:
+                db.table(t).delete().gte("created_at", "1970-01-01").execute()
+                report[t] = "ok"
+                logger.info(f"🧨 RESET: таблица {t} очищена")
+            except Exception as e:
+                report[t] = f"err: {e}"
+                logger.error(f"❌ RESET: не удалось очистить {t}: {e}")
+        return report
+    except Exception as e:
+        logger.error(f"❌ RESET: критическая ошибка: {e}")
+        report["_fatal"] = str(e)
+        return report
