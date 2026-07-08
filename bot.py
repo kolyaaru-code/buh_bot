@@ -649,6 +649,81 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
             )
 
 # ============================================================
+# ВКЛАД В ЦЕЛЬ — карточка подтверждения с выбором цели
+# Показывается ВСЕГДА. Матчим цель, предлагаем её; кнопкой можно
+# выбрать любую другую активную цель или создать новую.
+# Запись — только по «Да» (ИИ здесь не участвует → нет ложных «накоплено»).
+# ============================================================
+async def _ask_deposit(message, context: ContextTypes.DEFAULT_TYPE,
+                       goal_title: str, amount: float):
+    match = db.find_goal_match(goal_title)   # {"goal":..., "exact":bool} | None
+    goals = db.get_goals_brief()
+
+    # целей вообще нет → сразу предложить создать
+    if not goals:
+        token = _stash(context, {"kind": "dep_nogoals", "goal_title": goal_title, "amount": amount})
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🎯 Создать цель", callback_data=f"q:dep_new:{token}"),
+            InlineKeyboardButton("❌ Отмена",       callback_data=f"q:cancel_noop:{token}"),
+        ]])
+        await message.reply_text(
+            f"Целей пока нет. Создать цель «{goal_title}» и отложить {amount:,.0f}?",
+            reply_markup=kb,
+        )
+        return
+
+    proposed = match["goal"] if match else goals[0]  # если не угадали — первая как дефолт
+    token = _stash(context, {
+        "kind": "dep_confirm",
+        "goal_id": proposed["id"],
+        "goal_title_said": goal_title,
+        "amount": amount,
+    })
+    sv = proposed.get("saved_amount") or 0
+    tgt = proposed.get("target_amount") or 0
+    kb = InlineKeyboardMarkup([
+        [InlineKeyboardButton(f"✅ Да, в «{proposed.get('title','')}»",
+                              callback_data=f"q:dep_yes:{token}")],
+        [InlineKeyboardButton("🎯 Выбрать другую цель", callback_data=f"q:dep_pick:{token}")],
+        [InlineKeyboardButton("❌ Отмена", callback_data=f"q:cancel_noop:{token}")],
+    ])
+    hint = "" if (match and match.get("exact")) else " (угадал приблизительно — проверь!)"
+    await message.reply_text(
+        f"🐷 Отложить {amount:,.0f} в цель «{proposed.get('title','')}»?{hint}\n"
+        f"   Сейчас накоплено {sv:,.0f} из {tgt:,.0f}.",
+        reply_markup=kb,
+    )
+
+def _deposit_pick_kb(context: ContextTypes.DEFAULT_TYPE, amount: float, said: str) -> InlineKeyboardMarkup:
+    """Клавиатура со всеми активными целями для выбора, куда отложить."""
+    rows = []
+    for g in db.get_goals_brief():
+        token = _stash(context, {
+            "kind": "dep_pick_one", "goal_id": g["id"], "amount": amount, "goal_title_said": said,
+        })
+        rows.append([InlineKeyboardButton(
+            f"🎯 {g['title']} ({g['saved']:,.0f}/{g['target']:,.0f})",
+            callback_data=f"q:dep_goal:{token}",
+        )])
+    # создать новую + отмена
+    tok_new = _stash(context, {"kind": "dep_nogoals", "goal_title": said, "amount": amount})
+    rows.append([InlineKeyboardButton("➕ Создать новую цель", callback_data=f"q:dep_new:{tok_new}")])
+    tok_cancel = _stash(context, {"kind": "dep_cancel"})
+    rows.append([InlineKeyboardButton("❌ Отмена", callback_data=f"q:cancel_noop:{tok_cancel}")])
+    return InlineKeyboardMarkup(rows)
+
+def _do_deposit(goal_id: int, amount: float) -> str:
+    """Реальная запись вклада (журналируется, К9). Возвращает строку-итог."""
+    updated = db.add_to_goal(goal_id, amount, journal=True)
+    if not updated:
+        return "⚠️ Не удалось записать вклад."
+    tgt = updated.get("target_amount") or 0
+    sv = updated.get("saved_amount") or 0
+    pct = (sv / tgt * 100) if tgt > 0 else 0
+    return (f"🐷 Отложил в «{updated.get('title','')}»: +{amount:,.0f}\n"
+            f"   Итого {sv:,.0f} из {tgt:,.0f} ({pct:.0f}%)")
+
+# ============================================================
 # ОБРАБОТЧИК ВСЕХ КНОПОК
 # ============================================================
 async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -841,6 +916,36 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         desc = payload.get("goal_title", "")
         db.save_transaction("expense", amount, category, desc)
         await query.edit_message_text(f"📤 Записал как обычный расход: {amount:,.0f} — {category}.")
+
+    # --- вклад в цель: подтвердил предложенную цель ---
+    elif action == "dep_yes":
+        result = _do_deposit(payload["goal_id"], payload["amount"])
+        await query.edit_message_text("✅ " + result)
+
+    # --- вклад в цель: хочу выбрать другую цель ---
+    elif action == "dep_pick":
+        kb = _deposit_pick_kb(context, payload["amount"], payload.get("goal_title_said", ""))
+        await query.edit_message_text(
+            f"В какую цель отложить {payload['amount']:,.0f}?",
+            reply_markup=kb,
+        )
+
+    # --- вклад в цель: выбрал конкретную цель из списка ---
+    elif action == "dep_goal":
+        result = _do_deposit(payload["goal_id"], payload["amount"])
+        await query.edit_message_text("✅ " + result)
+
+    # --- вклад в цель: создать новую цель под этот вклад ---
+    elif action == "dep_new":
+        gid = db.add_goal(payload["goal_title"], payload["amount"], None)
+        if gid is not None:
+            db.add_to_goal(gid, payload["amount"], journal=True)
+            await query.edit_message_text(
+                f"🎯 Создал цель «{payload['goal_title']}» и отложил {payload['amount']:,.0f}.\n"
+                f"⚠️ Целевую сумму пока не знаю — задай её, например: «цель {payload['goal_title']} 100000»."
+            )
+        else:
+            await query.edit_message_text("❌ Не получилось создать цель.")
 
     # --- любой отказ ---
     elif action == "cancel_noop":
@@ -1101,11 +1206,25 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
             db.set_profile(key, value)
         logger.info(f"👤 Обновлён профиль: {analysis['profile']}")
 
-    # Действия делим: «отмена» — свой отдельный переспрос, её НЕ заворачиваем в карточку.
+    # Действия делим: «отмена» и «вклад в цель» — свои отдельные потоки,
+    # их НЕ заворачиваем в общую карточку записи.
     write_actions = [a for a in analysis["actions"]
-                     if a["action"] in ("goal_deposit", "debt_repay", "debt_return",
+                     if a["action"] in ("debt_repay", "debt_return",
                                         "goal_complete", "goal_withdraw")]
     cancel_actions = [a for a in analysis["actions"] if a["action"] == "cancel"]
+    deposit_actions = [a for a in analysis["actions"] if a["action"] == "goal_deposit"]
+
+    # ВКЛАД В ЦЕЛЬ (goal_deposit) — свой поток с подтверждением и выбором цели.
+    # Обрабатываем ПЕРВЫМ и ВСЕГДА карточкой (как решили). ИИ здесь НЕ вызывается,
+    # поэтому бот физически не может соврать «накоплено X» до реальной записи —
+    # это чинит старый баг ложного подтверждения вклада.
+    if deposit_actions:
+        for dep in deposit_actions:
+            await _ask_deposit(update.message, context, dep["goal_title"], dep["amount"])
+        if cancel_actions:
+            _, _, questions = _handle_actions(cancel_actions)
+            await _ask_questions(update.message, context, questions, [])
+        return
 
     # Есть ли что записывать — то, что нужно подтвердить карточкой?
     needs_card = bool(

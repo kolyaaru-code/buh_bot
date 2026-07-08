@@ -319,32 +319,104 @@ def get_goal(goal_id: int) -> dict | None:
         logger.error(f"❌ Ошибка получения цели: {e}")
         return None
 
+# ------------------------------------------------------------
+# НОРМАЛИЗАЦИЯ НАЗВАНИЙ ЦЕЛЕЙ для устойчивого матчинга.
+# Проблема: голосом говорят «макбук» (кириллица), а цель названа
+# «MacBook» (латиница) — побуквенно это разные строки. Решение:
+# приводим обе строки к единому «звуковому» виду через транслитерацию
+# кириллицы в латиницу, убираем регистр/пробелы/дефисы. Тогда
+# «макбук» и «MacBook» → оба «makbuk»/«macbook» и матчатся.
+# ------------------------------------------------------------
+_TRANSLIT = {
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e",
+    "ж": "zh", "з": "z", "и": "i", "й": "i", "к": "k", "л": "l", "м": "m",
+    "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u",
+    "ф": "f", "х": "h", "ц": "c", "ч": "ch", "ш": "sh", "щ": "sch",
+    "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+}
+
+def _normalize_title(s: str) -> str:
+    """Приводит название к сравнимому виду: нижний регистр, транслит кириллицы,
+    без пробелов/дефисов. 'MacBook' и 'Мак бук' → сравнимы."""
+    s = (s or "").strip().lower()
+    out = []
+    for ch in s:
+        if ch in _TRANSLIT:
+            out.append(_TRANSLIT[ch])
+        elif ch.isalnum():
+            out.append(ch)
+        # пробелы, дефисы, пунктуацию отбрасываем
+    return "".join(out)
+
 def find_goal_by_title(title: str, status: str = "active") -> dict | None:
     """
-    Ищет активную цель с похожим названием.
-    Сначала точное совпадение (без регистра/пробелов), затем частичное
-    вхождение в любую сторону ("айфон" найдёт "новый айфон" и наоборот).
+    Ищет активную цель с похожим названием (устойчиво к раскладке и регистру).
     Возвращает первую совпавшую цель или None.
+    Для интерактивного выбора используй find_goal_match() — она сообщает
+    ещё и НАСКОЛЬКО уверенно совпало.
+    """
+    m = find_goal_match(title, status)
+    return m["goal"] if m else None
+
+def find_goal_match(title: str, status: str = "active") -> dict | None:
+    """
+    Как find_goal_by_title, но возвращает {"goal": ..., "exact": bool} или None.
+    exact=True  — точное совпадение после нормализации (можно уверенно предлагать);
+    exact=False — частичное вхождение (одно название содержит другое) —
+                  совпадение вероятное, но не стопроцентное.
     """
     try:
-        needle = title.strip().lower().replace(" ", "")
+        needle = _normalize_title(title)
         if not needle:
             return None
         goals = get_goals(status)
-        # 1) точное совпадение
+        # 1) точное совпадение после нормализации
         for g in goals:
-            existing = (g.get("title") or "").strip().lower().replace(" ", "")
-            if existing == needle:
-                return g
+            if _normalize_title(g.get("title") or "") == needle:
+                return {"goal": g, "exact": True}
         # 2) частичное вхождение (одно содержит другое)
         for g in goals:
-            existing = (g.get("title") or "").strip().lower().replace(" ", "")
+            existing = _normalize_title(g.get("title") or "")
             if existing and (needle in existing or existing in needle):
-                return g
+                return {"goal": g, "exact": False}
+        # 3) нечёткое совпадение (difflib) — предлагает ЛУЧШЕГО кандидата
+        #    для подтверждения кнопкой. Порог низкий (0.4), потому что это
+        #    НЕ авто-запись: пользователь всё равно подтверждает выбор или
+        #    берёт другую цель из списка. Задача — просто угадать вероятную
+        #    цель по умолчанию («макбук» → предложить «MacBook»).
+        import difflib
+        best = None
+        best_ratio = 0.0
+        for g in goals:
+            existing = _normalize_title(g.get("title") or "")
+            if not existing:
+                continue
+            ratio = difflib.SequenceMatcher(None, needle, existing).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best = g
+        if best is not None and best_ratio >= 0.4:
+            return {"goal": best, "exact": False}
         return None
     except Exception as e:
         logger.error(f"❌ Ошибка поиска цели: {e}")
         return None
+
+def get_goals_brief(status: str = "active") -> list:
+    """Короткий список активных целей для кнопок выбора: [{id, title, saved, target}]."""
+    try:
+        out = []
+        for g in get_goals(status):
+            out.append({
+                "id": g["id"],
+                "title": g.get("title") or "",
+                "saved": g.get("saved_amount") or 0,
+                "target": g.get("target_amount") or 0,
+            })
+        return out
+    except Exception as e:
+        logger.error(f"❌ Ошибка списка целей: {e}")
+        return []
 
 def get_saved_in_goals(status: str = "active") -> float:
     """Сумма всех saved_amount по активным целям — 'сколько в копилке'."""
