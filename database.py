@@ -723,15 +723,19 @@ def hard_reset_all() -> dict:
     ⚠️ НЕОБРАТИМО. Вызывать только после ЯВНОГО двойного подтверждения в bot.py.
     Схему таблиц НЕ трогает — только строки. id-последовательности не сбрасывает
     (новые записи продолжат нумерацию дальше — это нормально и не мешает).
+
+    Удаляем по первичному ключу id (.gte("id", 0)) — он есть во ВСЕХ пяти
+    таблицах. Раньше использовался created_at, но у user_profile такой колонки
+    нет (там updated_at), из-за чего профиль не чистился. id — надёжный
+    общий предикат, не зависящий от имени колонки времени.
     """
     report = {}
-    # created_at есть во всех этих таблицах → единый безопасный предикат.
     tables = ["transactions", "goals", "debts", "chat_history", "user_profile"]
     try:
         db = get_client()
         for t in tables:
             try:
-                db.table(t).delete().gte("created_at", "1970-01-01").execute()
+                db.table(t).delete().gte("id", 0).execute()
                 report[t] = "ok"
                 logger.info(f"🧨 RESET: таблица {t} очищена")
             except Exception as e:
