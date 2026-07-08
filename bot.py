@@ -753,6 +753,14 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if action == "confirm_yes":
         pending = payload.get("pending") or {}
         raw_text = payload.get("raw_text", "")
+        # Сразу гасим карточку и убираем клавиатуру — иначе на время похода
+        # в Groq (несколько секунд) кнопки остаются активными, и повторный
+        # тап по «Да» упирается в уже удалённый токен ("Кнопка устарела"),
+        # хотя запись при этом уже прошла с первого нажатия.
+        try:
+            await query.edit_message_text("⏳ Записываю…")
+        except Exception as e:
+            logger.error(f"❌ Не смог показать «Записываю…»: {e}")
         await _commit_analysis(query, context, pending, raw_text)
         _drop(context, token)
         return
