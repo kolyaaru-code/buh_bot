@@ -143,7 +143,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/debts — мои долги\n"
         f"/profile — мой профиль\n"
         f"/advice — совет от ИИ\n"
-        f"/clear — очистить память диалога"
+        f"/clear — очистить память диалога\n"
+        f"/reset — стереть все данные (с подтверждением)"
     )
 
 @owner_only
@@ -331,6 +332,36 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.clear_chat_history()
     await update.message.reply_text("🧹 Память диалога очищена!")
 
+# ------------------------------------------------------------
+# /reset — ПОЛНОЕ обнуление всех данных (для чистого теста «с нуля»).
+# ⚠️ НЕОБРАТИМО. Поэтому — ДВА шага подтверждения кнопками, прежде чем
+#    что-то удалить. Первый шаг предупреждает и показывает объём, второй —
+#    финальное «да, точно». Только после второго зовём hard_reset_all().
+# ------------------------------------------------------------
+@owner_only
+async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    stats = db.get_stats()
+    goals_n = len(db.get_goals())
+    debts_n = len(db.get_debts())
+    cnt = stats.get("count", 0) if stats else 0
+    token = _stash(context, {"kind": "reset_step1"})
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("⚠️ Да, стереть всё", callback_data=f"q:reset_confirm1:{token}"),
+        InlineKeyboardButton("❌ Отмена",          callback_data=f"q:cancel_noop:{token}"),
+    ]])
+    await update.message.reply_text(
+        "🧨 ПОЛНЫЙ СБРОС\n"
+        "─────────────\n"
+        "Будут БЕЗВОЗВРАТНО удалены ВСЕ данные:\n"
+        f"  • операции (~{cnt})\n"
+        f"  • цели ({goals_n})\n"
+        f"  • долги ({debts_n})\n"
+        "  • история диалога\n"
+        "  • профиль\n\n"
+        "Это нельзя отменить. Начать сброс?",
+        reply_markup=kb,
+    )
+
 # ============================================================
 # СОЗДАНИЕ ДОЛГА (двигает баланс через транзакцию)
 # дал в долг (owe_me) → расход «выдача долга»
@@ -393,7 +424,8 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                     "amount": a["amount"],
                 })
                 continue
-            updated = db.add_to_goal(goal["id"], a["amount"])
+            updated = db.add_to_goal(goal["id"], a["amount"], journal=True,
+                                     description=f"в копилку: {goal.get('title','')}")
             if updated:
                 tgt = updated.get("target_amount") or 0
                 sv = updated.get("saved_amount") or 0
@@ -456,6 +488,61 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                 "kind": "cancel",
                 "hint": a.get("hint", ""),
             })
+
+        # --- купил то, на что копил: закрыть цель покупкой ---
+        # Пишем ЖИВОЙ расход (баланс падает) + закрываем цель (снимаем резерв).
+        # Оба действия — атомарно по смыслу: и деньги ушли, и копилка обнулилась,
+        # задвоения нет (см. модель «резерв» в database.py).
+        elif act == "goal_complete":
+            goal = db.find_goal_by_title(a["goal_title"])
+            if goal is None:
+                # цели нет — это просто обычная покупка, не закрытие цели
+                tx_id = db.save_transaction("expense", a["amount"],
+                                            a.get("category") or "другое", a["goal_title"])
+                if tx_id is not None:
+                    saved_lines.append(f"📤 {a['amount']:,.0f} — {a.get('category') or 'другое'} ({a['goal_title']})")
+                    summary_parts.append(f"expense {a['amount']:.0f} ({a.get('category') or 'другое'})")
+                continue
+            # 1) живой расход на покупку, привязан к цели
+            tx_id = db.save_transaction("expense", a["amount"],
+                                        a.get("category") or "другое",
+                                        f"покупка цели: {goal.get('title','')}",
+                                        goal_id=goal["id"])
+            # 2) закрываем цель (status=completed, saved→0)
+            done = db.complete_goal(goal["id"], a["amount"])
+            if done:
+                saved = goal.get("saved_amount") or 0
+                note = ""
+                if a["amount"] > saved and saved > 0:
+                    note = f" (в копилке было {saved:,.0f}, доплатил {a['amount']-saved:,.0f} из свободных)"
+                elif a["amount"] < saved:
+                    note = f" (в копилке было {saved:,.0f}, разница {saved-a['amount']:,.0f} вернулась в свободные)"
+                saved_lines.append(
+                    f"🏁 Цель «{goal.get('title','')}» закрыта покупкой: −{a['amount']:,.0f}{note}"
+                )
+                summary_parts.append(f"закрыта цель {goal.get('title','')} покупкой на {a['amount']:.0f}")
+            else:
+                saved_lines.append(f"⚠️ Расход записал, но цель «{goal.get('title','')}» закрыть не вышло")
+
+        # --- передумал копить: закрыть цель без траты ---
+        elif act == "goal_withdraw":
+            goal = db.find_goal_by_title(a["goal_title"])
+            if goal is None:
+                saved_lines.append(f"🤔 Цели «{a['goal_title']}» не нашёл — нечего закрывать")
+                continue
+            res = db.withdraw_goal(goal["id"])
+            if res:
+                released = res.get("released") or 0
+                if released > 0:
+                    saved_lines.append(
+                        f"🚪 Цель «{goal.get('title','')}» закрыта. "
+                        f"{released:,.0f} снова свободны (из копилки в общий баланс)"
+                    )
+                else:
+                    saved_lines.append(f"🚪 Цель «{goal.get('title','')}» закрыта.")
+                summary_parts.append(f"закрыта цель {goal.get('title','')} без траты")
+            else:
+                saved_lines.append(f"⚠️ Не удалось закрыть цель «{goal.get('title','')}»")
 
     return saved_lines, summary_parts, questions
 
@@ -534,6 +621,20 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
                 await message.reply_text("🤔 Не нашёл подходящую операцию для отмены.")
                 continue
 
+            # К10: если отменяем транзакцию-СОЗДАНИЕ долга, а по этому долгу уже
+            # были другие движения (погашения/возвраты) — простая отмена создаст
+            # рассинхрон (деньги «из воздуха», исчезнувший долг). Предупреждаем.
+            warn = ""
+            cat_tx = (target_tx.get("category") or "")
+            if target_tx.get("debt_id") and cat_tx in CREATION_DEBT_CATS:
+                n_tx = db.count_debt_transactions(target_tx["debt_id"])
+                if n_tx > 1:
+                    warn = (
+                        f"\n\n⚠️ По этому долгу уже есть другие операции "
+                        f"(всего {n_tx}). Если отменить именно создание долга, "
+                        f"цифры могут разъехаться. Лучше сначала отмени погашения/возвраты."
+                    )
+
             token = _stash(context, {"kind": "cancel_confirm", "tx_id": target_tx["id"], "tx": target_tx})
             emoji = "📥" if target_tx["type"] == "income" else "📤"
             kb = InlineKeyboardMarkup([[
@@ -543,7 +644,7 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
             await message.reply_text(
                 f"Отменить операцию?\n"
                 f"{emoji} {target_tx['amount']:,.0f} — {target_tx.get('category','')} "
-                f"({target_tx.get('description','')})",
+                f"({target_tx.get('description','')}){warn}",
                 reply_markup=kb,
             )
 
@@ -676,6 +777,70 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.edit_message_text("❌ Не удалось отменить операцию.")
+
+    # --- сброс: шаг 1 подтверждён → просим финальное «да» ---
+    elif action == "reset_confirm1":
+        token2 = _stash(context, {"kind": "reset_step2"})
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🧨 ДА, ТОЧНО СТЕРЕТЬ", callback_data=f"q:reset_confirm2:{token2}"),
+            InlineKeyboardButton("❌ Нет, оставить",     callback_data=f"q:cancel_noop:{token2}"),
+        ]])
+        await query.edit_message_text(
+            "❗ Последнее предупреждение.\n"
+            "После нажатия все данные исчезнут навсегда.\n\n"
+            "Точно стереть всё и начать с нуля?",
+            reply_markup=kb,
+        )
+
+    # --- сброс: шаг 2 подтверждён → ВЫПОЛНЯЕМ ---
+    elif action == "reset_confirm2":
+        report = db.hard_reset_all()
+        errors = {k: v for k, v in report.items() if v != "ok"}
+        if not errors:
+            await query.edit_message_text(
+                "🧨 Готово. Все данные стёрты — бот как новый.\n"
+                "Можешь начинать вести учёт с чистого листа."
+            )
+        else:
+            await query.edit_message_text(
+                "⚠️ Сброс выполнен частично. Проблемы:\n"
+                + "\n".join(f"  • {k}: {v}" for k, v in errors.items())
+            )
+
+    # --- развилка «купил то, на что копил» ---
+    elif action == "goalbuy_yes":
+        # закрыть цель покупкой: живой расход + complete_goal
+        goal_id = payload.get("goal_id")
+        amount = payload.get("amount")
+        category = payload.get("category") or "другое"
+        title = payload.get("goal_title", "")
+        goal = db.get_goal(goal_id) if goal_id else None
+        saved = (goal.get("saved_amount") or 0) if goal else 0
+        db.save_transaction("expense", amount, category,
+                            f"покупка цели: {title}", goal_id=goal_id)
+        done = db.complete_goal(goal_id, amount) if goal_id else None
+        if done:
+            note = ""
+            if amount > saved and saved > 0:
+                note = f"\nВ копилке было {saved:,.0f}, доплата {amount-saved:,.0f} из свободных."
+            elif amount < saved:
+                note = f"\nВ копилке было {saved:,.0f}, разница {saved-amount:,.0f} вернулась в свободные."
+            await query.edit_message_text(
+                f"🏁 Цель «{title}» закрыта покупкой: −{amount:,.0f}.{note}"
+            )
+        else:
+            await query.edit_message_text(
+                f"📤 Записал расход {amount:,.0f} — {category}, "
+                f"но цель «{title}» закрыть не вышло."
+            )
+
+    elif action == "goalbuy_no":
+        # обычный расход, цель не трогаем
+        amount = payload.get("amount")
+        category = payload.get("category") or "другое"
+        desc = payload.get("goal_title", "")
+        db.save_transaction("expense", amount, category, desc)
+        await query.edit_message_text(f"📤 Записал как обычный расход: {amount:,.0f} — {category}.")
 
     # --- любой отказ ---
     elif action == "cancel_noop":
@@ -909,6 +1074,10 @@ def _render_preview(pending: dict) -> str:
             lines.append(f"✅ Погашение долга: {a['person']} — {a['amount']:,.0f}")
         elif a["action"] == "debt_return":
             lines.append(f"📈 Вернули долг: {a['person']} — {a['amount']:,.0f}")
+        elif a["action"] == "goal_complete":
+            lines.append(f"🏁 Закрыть цель «{a['goal_title']}» покупкой: −{a['amount']:,.0f}")
+        elif a["action"] == "goal_withdraw":
+            lines.append(f"🚪 Закрыть цель «{a['goal_title']}» без траты (деньги вернутся в свободные)")
     body = "\n".join(f"  {ln}" for ln in lines)
     return f"🤔 Я понял так:\n{body}\n\nВсё верно?"
 
@@ -934,7 +1103,8 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
 
     # Действия делим: «отмена» — свой отдельный переспрос, её НЕ заворачиваем в карточку.
     write_actions = [a for a in analysis["actions"]
-                     if a["action"] in ("goal_deposit", "debt_repay", "debt_return")]
+                     if a["action"] in ("goal_deposit", "debt_repay", "debt_return",
+                                        "goal_complete", "goal_withdraw")]
     cancel_actions = [a for a in analysis["actions"] if a["action"] == "cancel"]
 
     # Есть ли что записывать — то, что нужно подтвердить карточкой?
@@ -942,7 +1112,25 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         analysis["transactions"] or analysis["goals"] or analysis["debts"] or write_actions
     )
 
-    if needs_card:
+    # СТРАХОВКА К8: если ИИ вернул ОБЫЧНЫЙ расход, а его описание похоже на активную
+    # цель — вероятно, человек купил то, на что копил, но ИИ не распознал goal_complete.
+    # Спросим отдельной кнопкой: «Это покупка по цели? Закрыть цель?». Это НЕ мешает
+    # обычной карточке — если человек скажет «нет», расход запишется как есть.
+    goal_hints = []
+    if len(analysis["transactions"]) == 1 and not analysis["goals"] and not write_actions:
+        t = analysis["transactions"][0]
+        if t["type"] == "expense" and (t.get("category") not in db.NON_CASH_CATEGORIES):
+            match = db.find_goal_by_title(t.get("description") or "")
+            if match:
+                goal_hints.append({
+                    "goal_id": match["id"],
+                    "goal_title": match.get("title", ""),
+                    "amount": t["amount"],
+                    "category": t.get("category") or "другое",
+                    "saved": match.get("saved_amount") or 0,
+                })
+
+    if needs_card and not goal_hints:
         pending = {
             "transactions": analysis["transactions"],
             "goals":        analysis["goals"],
@@ -958,6 +1146,34 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         await update.message.reply_text(_render_preview(pending), reply_markup=kb)
 
         # редкий случай: в одном сообщении и запись, и «отмени» — покажем отмену отдельно
+        if cancel_actions:
+            _, _, questions = _handle_actions(cancel_actions)
+            await _ask_questions(update.message, context, questions, [])
+        return
+
+    # СТРАХОВКА К8: расход совпал с активной целью — показываем развилку
+    # (закрыть цель покупкой ИЛИ записать как обычный расход). Один выбор,
+    # без риска двойной записи.
+    if goal_hints:
+        h = goal_hints[0]
+        raw_text = text
+        pay_token = _stash(context, {
+            "kind": "goal_buy", **h, "raw_text": raw_text,
+        })
+        saved = h["saved"]
+        info = f" В копилке уже {saved:,.0f}." if saved > 0 else ""
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏁 Да, закрыть цель покупкой",
+                                  callback_data=f"q:goalbuy_yes:{pay_token}")],
+            [InlineKeyboardButton("📤 Нет, обычный расход",
+                                  callback_data=f"q:goalbuy_no:{pay_token}")],
+        ])
+        await update.message.reply_text(
+            f"🤔 Похоже, ты купил то, на что копил.\n"
+            f"Цель «{h['goal_title']}», покупка на {h['amount']:,.0f}.{info}\n\n"
+            f"Закрыть цель этой покупкой?",
+            reply_markup=kb,
+        )
         if cancel_actions:
             _, _, questions = _handle_actions(cancel_actions)
             await _ask_questions(update.message, context, questions, [])
@@ -1126,6 +1342,7 @@ def main():
     app.add_handler(CommandHandler("profile",    profile))
     app.add_handler(CommandHandler("advice",     advice))
     app.add_handler(CommandHandler("clear",      clear_history))
+    app.add_handler(CommandHandler("reset",      reset_cmd))
 
     # все inline-кнопки идут через единый обработчик (callback_data начинается с "q:")
     app.add_handler(CallbackQueryHandler(on_button, pattern=r"^q:"))

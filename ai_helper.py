@@ -206,6 +206,21 @@ def analyze_message(text: str) -> dict:
    hint — слово-подсказка что искать (например "бензин", "кофе"). Если человек говорит
    просто "отмени последнее" / "я ошибся" без уточнения — hint оставь пустым "".
 
+5. КУПИЛ ТО, НА ЧТО КОПИЛ (закрыть цель покупкой):
+   {"action": "goal_complete", "goal_title": "название цели", "amount": число, "category": "..."}
+   Маркеры: "купил <цель>", "наконец купил <цель>", "потратил на <цель> из копилки",
+   "взял <цель>, на который копил". Это ОДНОВРЕМЕННО трата и закрытие цели.
+   amount — сколько реально потратил (может отличаться от накопленного).
+   category — обычная категория расхода (техника, одежда, транспорт …) по смыслу покупки.
+   Отличие от обычной траты: названная вещь СОВПАДАЕТ с существующей целью.
+   Если сомневаешься — цель это или обычная покупка — верни обычную transaction,
+   система сама предложит закрыть цель.
+
+6. ПЕРЕДУМАЛ КОПИТЬ / ЗАКРЫТЬ ЦЕЛЬ БЕЗ ТРАТЫ:
+   {"action": "goal_withdraw", "goal_title": "название цели"}
+   Маркеры: "больше не коплю на …", "закрой цель …", "передумал копить на …",
+   "убери цель …", "отменяю цель …". БЕЗ суммы — это не трата, а отказ от цели.
+
 КАК ОТЛИЧИТЬ создание от действия:
 - "хочу накопить на айфон 120000" → СОЗДАНИЕ цели (goals). Названа ЦЕЛЕВАЯ сумма.
 - "отложил 5000 на айфон" → ПОПОЛНЕНИЕ (actions: goal_deposit). Названа сумма ВЗНОСА.
@@ -254,6 +269,18 @@ def analyze_message(text: str) -> dict:
 
 "удали ту трату на бензин"
 → {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"cancel","hint":"бензин"}]}
+
+"купил макбук за 150000" (когда есть цель "макбук")
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"goal_complete","goal_title":"макбук","amount":150000,"category":"техника"}]}
+
+"наконец взял тот айфон, 120000"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"goal_complete","goal_title":"айфон","amount":120000,"category":"техника"}]}
+
+"больше не коплю на отпуск"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"goal_withdraw","goal_title":"отпуск"}]}
+
+"закрой цель макбук, передумал"
+→ {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[{"action":"goal_withdraw","goal_title":"макбук"}]}
 
 "меня зовут Никита, работаю дизайнером в Москве"
 → {"transactions":[],"profile":{"name":"Никита","job":"дизайнер","city":"Москва"},"goals":[],"debts":[],"actions":[]}
@@ -351,6 +378,24 @@ def analyze_message(text: str) -> dict:
                 result["actions"].append({"action": act, "person": person, "amount": amount})
             elif act == "cancel":
                 result["actions"].append({"action": "cancel", "hint": (a.get("hint") or "").strip()})
+            elif act == "goal_complete":
+                amount = _to_float(a.get("amount"))
+                title = (a.get("goal_title") or "").strip()
+                if amount is None or amount <= 0 or not title:
+                    logger.warning(f"⚠️ Пропущено goal_complete: {a}")
+                    continue
+                result["actions"].append({
+                    "action": "goal_complete",
+                    "goal_title": title,
+                    "amount": amount,
+                    "category": (a.get("category") or "другое").strip() or "другое",
+                })
+            elif act == "goal_withdraw":
+                title = (a.get("goal_title") or "").strip()
+                if not title:
+                    logger.warning(f"⚠️ Пропущено goal_withdraw: {a}")
+                    continue
+                result["actions"].append({"action": "goal_withdraw", "goal_title": title})
             else:
                 logger.warning(f"⚠️ Неизвестное действие: {a}")
 
