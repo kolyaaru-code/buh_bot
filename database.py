@@ -487,43 +487,25 @@ def add_goal(title: str, target_amount: float, deadline: str = None) -> int | No
         logger.error(f"❌ Ошибка добавления цели: {e}")
         return None
 
-def complete_goal(goal_id: int, spent_amount: float, description: str = None) -> dict | None:
-    """
-    ЗАКРЫТЬ ЦЕЛЬ ПОКУПКОЙ (К8, сценарий «накопил и купил»).
-
-    Модель «резерв»: накопленные деньги всё это время лежали в балансе.
-    Покупка — это реальный расход, поэтому здесь мы:
-      1) пишем транзакцию-РАСХОД на spent_amount (баланс падает по-настоящему),
-         привязанную к goal_id и с ЖИВОЙ категорией "техника"/"другое" — она
-         УЧАСТВУЕТ в балансе (это не служебная «в копилку»!);
-      2) снимаем резерв: цель → status "completed", saved_amount обнуляем.
-
-    Итог: и баланс, и резерв уменьшились ОДНИМ действием — задвоения нет.
-    Возвращает {"goal": ..., "tx_id": ...} или None.
-
-    ВАЖНО: сам расход тут НЕ создаём вслепую — категорию расхода определяет
-    вызывающий код (bot.py) из исходной фразы пользователя. Эта функция
-    только помечает цель завершённой и возвращает данные; транзакцию расхода
-    bot.py уже записал ДО вызова и передал сюда её tx_id для привязки.
-    Такой порядок держит всю логику «что за расход» в одном месте (bot.py).
-    """
+def complete_goal(goal_id: int, spent_amount: float, category: str, description: str) -> bool:
+    """ЗАКРЫТЬ ЦЕЛЬ ПОКУПКОЙ (Атомарно через RPC).
+    Пишет расход и обнуляет цель прямо внутри базы данных за один шаг."""
     try:
         db = get_client()
-        cur = db.table("goals").select("*").eq("id", goal_id).execute()
-        if not cur.data:
-            logger.error(f"❌ Цель id={goal_id} не найдена для завершения")
-            return None
-        goal = cur.data[0]
-        db.table("goals").update(
-            {"status": "completed", "saved_amount": 0}
-        ).eq("id", goal_id).execute()
-        goal["status"] = "completed"
-        goal["saved_amount"] = 0
-        logger.info(f"🏁 Цель id={goal_id} «{goal.get('title','')}» завершена покупкой на {spent_amount}")
-        return goal
+        result = db.rpc("rpc_complete_goal", {
+            "p_goal_id": goal_id,
+            "p_amount": spent_amount,
+            "p_category": category,
+            "p_description": description
+        }).execute()
+        
+        if result.data:
+            logger.info(f"🏁 Цель id={goal_id} атомарно закрыта покупкой на {spent_amount}")
+            return True
+        return False
     except Exception as e:
-        logger.error(f"❌ Ошибка завершения цели: {e}")
-        return None
+        logger.error(f"❌ Ошибка атомарного закрытия цели: {e}")
+        return False
 
 def withdraw_goal(goal_id: int) -> dict | None:
     """

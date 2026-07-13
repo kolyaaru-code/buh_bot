@@ -523,13 +523,14 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                     saved_lines.append(f"🛒 {a['amount']:,.0f} — {a.get('category') or 'другое'} ({a['goal_title']})")
                     summary_parts.append(f"expense {a['amount']:.0f} ({a.get('category') or 'другое'})")
                 continue
-            # 1) живой расход на покупку, привязан к цели
-            tx_id = db.save_transaction("expense", a["amount"],
-                                        a.get("category") or "другое",
-                                        f"покупка цели: {goal.get('title','')}",
-                                        goal_id=goal["id"])
-            # 2) закрываем цель (status=completed, saved→0)
-            done = db.complete_goal(goal["id"], a["amount"])
+            
+            # Атомарно пишем расход и закрываем цель
+            done = db.complete_goal(
+                goal["id"], 
+                a["amount"], 
+                a.get("category") or "другое", 
+                f"покупка цели: {goal.get('title','')}"
+            )
             if done:
                 saved = goal.get("saved_amount") or 0
                 note = ""
@@ -919,9 +920,9 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         title = payload.get("goal_title", "")
         goal = db.get_goal(goal_id) if goal_id else None
         saved = (goal.get("saved_amount") or 0) if goal else 0
-        db.save_transaction("expense", amount, category,
-                            f"покупка цели: {title}", goal_id=goal_id)
-        done = db.complete_goal(goal_id, amount) if goal_id else None
+        
+        # Атомарный вызов
+        done = db.complete_goal(goal_id, amount, category, f"покупка цели: {title}") if goal_id else False
         if done:
             note = ""
             if amount > saved and saved > 0:
