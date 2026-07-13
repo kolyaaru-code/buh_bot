@@ -1420,24 +1420,27 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
     ctx = load_context()
     chat_hist = db.get_chat_history(20)
     saved_summary = "; ".join(saved_summary_parts)
-    response = ai.chat_response(
+    ai_text = ai.chat_response(
         raw_text, chat_hist,
         ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
         saved_summary=saved_summary,
     )
-    if saved_results:
-        response = "✅ Записал:\n" + "\n".join(saved_results) + "\n\n" + response
 
-    # 6. Сохраняем диалог
+    # 6. Сохраняем диалог (ТОЛЬКО чистый текст ИИ, без технических заголовков!)
     db.save_message("user", raw_text)
-    db.save_message("assistant", response)
+    db.save_message("assistant", ai_text)
+
+    # Формируем финальное сообщение для Telegram
+    final_msg = ai_text
+    if saved_results:
+        final_msg = "✅ Записал:\n" + "\n".join(saved_results) + "\n\n" + ai_text
 
     # 7. Заменяем карточку «Я понял так…» на итог
     try:
-        await query.edit_message_text(response)
+        await query.edit_message_text(final_msg)
     except Exception as e:
         logger.error(f"❌ Не смог отредактировать карточку: {e}")
-        await query.message.reply_text(response)
+        await query.message.reply_text(final_msg)
 
     # 8. Переспросы (дубликаты целей + цель/долг не найдены)
     if pending_goals or questions:
