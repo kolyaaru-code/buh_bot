@@ -204,7 +204,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = "🕐 Последние записи:\n" + "─" * 25 + "\n"
     for t in transactions:
-        emoji = "💰" if t["type"] == "income" else "📤"
+        emoji = "💰" if t["type"] == "income" else "🛒"
         date = _fmt_local_date(t.get("created_at"))
         text += (
             f"{emoji} {t['amount']:,.0f} — {t['category']}\n"
@@ -274,7 +274,7 @@ async def debts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if i_owe:
         total = sum(d["amount"] for d in i_owe)
-        text += f"📤 Я должен (итого: {total:,.0f}):\n"
+        text += f"🛒 Я должен (итого: {total:,.0f}):\n"
         for d in i_owe:
             due = f" (до {d['due_date']})" if d.get("due_date") else ""
             text += f"  • {d['person']}: {d['amount']:,.0f} — {d.get('description', '')}{due}\n"
@@ -282,7 +282,7 @@ async def debts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if owe_me:
         total = sum(d["amount"] for d in owe_me)
-        text += f"📥 Должны мне (итого: {total:,.0f}):\n"
+        text += f"💰 Должны мне (итого: {total:,.0f}):\n"
         for d in owe_me:
             due = f" (до {d['due_date']})" if d.get("due_date") else ""
             text += f"  • {d['person']}: {d['amount']:,.0f} — {d.get('description', '')}{due}\n"
@@ -500,7 +500,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                 tx_id = db.save_transaction("expense", a["amount"],
                                             a.get("category") or "другое", a["goal_title"])
                 if tx_id is not None:
-                    saved_lines.append(f"📤 {a['amount']:,.0f} — {a.get('category') or 'другое'} ({a['goal_title']})")
+                    saved_lines.append(f"🛒 {a['amount']:,.0f} — {a.get('category') or 'другое'} ({a['goal_title']})")
                     summary_parts.append(f"expense {a['amount']:.0f} ({a.get('category') or 'другое'})")
                 continue
             # 1) живой расход на покупку, привязан к цели
@@ -636,7 +636,7 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
                     )
 
             token = _stash(context, {"kind": "cancel_confirm", "tx_id": target_tx["id"], "tx": target_tx})
-            emoji = "📥" if target_tx["type"] == "income" else "📤"
+            emoji = "🛒" if target_tx["type"] == "income" else "💰"
             kb = InlineKeyboardMarkup([[
                 InlineKeyboardButton("✅ Да, отменить", callback_data=f"q:cancel_yes:{token}"),
                 InlineKeyboardButton("❌ Нет",          callback_data=f"q:cancel_noop:{token}"),
@@ -854,7 +854,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         ok = db.delete_transaction(tx_id) if tx_id else False
         if ok:
-            emoji = "📥" if tx.get("type") == "income" else "📤"
+            emoji = "💰" if tx.get("type") == "income" else "🛒"
             await query.edit_message_text(
                 f"🗑️ Операция отменена:\n{emoji} {tx.get('amount',0):,.0f} — {tx.get('category','')}"
             )
@@ -913,7 +913,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
         else:
             await query.edit_message_text(
-                f"📤 Записал расход {amount:,.0f} — {category}, "
+                f"🛒 Записал расход {amount:,.0f} — {category}, "
                 f"но цель «{title}» закрыть не вышло."
             )
 
@@ -923,7 +923,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         category = payload.get("category") or "другое"
         desc = payload.get("goal_title", "")
         db.save_transaction("expense", amount, category, desc)
-        await query.edit_message_text(f"📤 Записал как обычный расход: {amount:,.0f} — {category}.")
+        await query.edit_message_text(f"🛒 Записал как обычный расход: {amount:,.0f} — {category}.")
 
     # --- вклад в цель: подтвердил предложенную цель ---
     elif action == "dep_yes":
@@ -1039,7 +1039,7 @@ def _parse_amount(text: str):
 def _render_draft(draft: dict) -> str:
     """Текст карточки-черновика с текущими значениями полей."""
     t = draft.get("type")
-    type_str = "📤 Расход" if t == "expense" else "📥 Доход" if t == "income" else "— не указан"
+    type_str = "🛒 Расход" if t == "expense" else "💰 Доход" if t == "income" else "— не указан"
     amount = draft.get("amount")
     amount_str = f"{amount:,.0f}" if amount is not None else "— не указана"
     cat = draft.get("category") or "— не указана"
@@ -1057,7 +1057,7 @@ def _render_draft(draft: dict) -> str:
 
 def _draft_kb() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
-        [InlineKeyboardButton("📤↔📥 Сменить тип", callback_data="q:draft_type:-")],
+        [InlineKeyboardButton("💰↔🛒 Сменить тип", callback_data="q:draft_type:-")],
         [InlineKeyboardButton("✏️ Сумма",      callback_data="q:draft_ask_amount:-"),
          InlineKeyboardButton("🏷️ Категория",  callback_data="q:draft_ask_category:-")],
         [InlineKeyboardButton("📝 Описание",    callback_data="q:draft_ask_desc:-")],
@@ -1182,9 +1182,9 @@ def _render_preview(pending: dict) -> str:
     lines = []
     for t in pending.get("transactions", []):
         if t["type"] == "expense":
-            lines.append(f"📤 Расход: {t['amount']:,.0f} — {t['category']} ({t['description']})")
+            lines.append(f"🛒 Расход: {t['amount']:,.0f} — {t['category']} ({t['description']})")
         else:
-            lines.append(f"📥 Доход: {t['amount']:,.0f} — {t['category']} ({t['description']})")
+            lines.append(f"💰 Доход: {t['amount']:,.0f} — {t['category']} ({t['description']})")
     for d in pending.get("debts", []):
         if d["direction"] == "owe_me":
             lines.append(f"💸 Новый долг: {d['person']} должен тебе {d['amount']:,.0f}")
@@ -1331,7 +1331,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         kb = InlineKeyboardMarkup([
             [InlineKeyboardButton("🏁 Да, закрыть цель покупкой",
                                   callback_data=f"q:goalbuy_yes:{pay_token}")],
-            [InlineKeyboardButton("📤 Нет, обычный расход",
+            [InlineKeyboardButton("🛒 Нет, обычный расход",
                                   callback_data=f"q:goalbuy_no:{pay_token}")],
         ])
         await update.message.reply_text(
@@ -1393,7 +1393,7 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
     for t in pending.get("transactions", []):
         tx_id = db.save_transaction(t["type"], t["amount"], t["category"], t["description"])
         if tx_id is not None:
-            emoji = "📥" if t["type"] == "income" else "📤"
+            emoji = "💰" if t["type"] == "income" else "🛒"
             saved_results.append(f"{emoji} {t['amount']:,.0f} — {t['category']} ({t['description']})")
             saved_summary_parts.append(f"{t['type']} {t['amount']:.0f} ({t['category']})")
         else:
