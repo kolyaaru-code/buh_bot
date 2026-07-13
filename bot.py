@@ -1022,7 +1022,12 @@ def _parse_amount(text: str):
     if re.search(r"^\s*(тысяч|тысячи|тысяча|тыс|k|к)\b", tail):
         mult = 1000
     raw = raw.replace(" ", "").replace("\u00a0", "").replace(",", ".")
-    if raw.count(".") > 1:                 # '200.000' как разделители тысяч -> убираем точки
+    
+    # ПРАВИЛО 3 ЦИФР: если точка ровно одна и после неё 3 цифры — это тысячи
+    if raw.count(".") == 1:
+        if len(raw.split(".")[1]) == 3:
+            raw = raw.replace(".", "")
+    elif raw.count(".") > 1:
         raw = raw.replace(".", "")
     try:
         val = float(raw) * mult
