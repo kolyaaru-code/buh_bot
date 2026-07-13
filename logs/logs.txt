@@ -1,151 +1,151 @@
-Jul 13 12:27:01 rnv-projects python[325755]: 2026-07-13 12:27:01,111 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:27:11 rnv-projects python[325755]: 2026-07-13 12:27:11,152 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:27:21 rnv-projects python[325755]: 2026-07-13 12:27:21,197 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:27:31 rnv-projects python[325755]: 2026-07-13 12:27:31,240 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:27:41 rnv-projects python[325755]: 2026-07-13 12:27:41,283 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:27:51 rnv-projects python[325755]: 2026-07-13 12:27:51,325 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:28:01 rnv-projects python[325755]: 2026-07-13 12:28:01,366 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:28:11 rnv-projects python[325755]: 2026-07-13 12:28:11,411 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:28:21 rnv-projects python[325755]: 2026-07-13 12:28:21,453 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:28:31 rnv-projects python[325755]: 2026-07-13 12:28:31,497 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:28:41 rnv-projects python[325755]: 2026-07-13 12:28:41,537 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:28:51 rnv-projects python[325755]: 2026-07-13 12:28:51,581 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:01 rnv-projects python[325755]: 2026-07-13 12:29:01,626 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:11 rnv-projects python[325755]: 2026-07-13 12:29:11,671 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:21 rnv-projects python[325755]: 2026-07-13 12:29:21,716 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:31 rnv-projects python[325755]: 2026-07-13 12:29:31,757 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:41 rnv-projects python[325755]: 2026-07-13 12:29:41,797 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:46 rnv-projects systemd[1]: Stopping Telegram Finance Bot...
-Jul 13 12:29:46 rnv-projects python[325755]: 2026-07-13 12:29:46,880 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:29:46 rnv-projects python[325755]: 2026-07-13 12:29:46,883 | INFO | Application is stopping. This might take a moment.
-Jul 13 12:29:46 rnv-projects python[325755]: 2026-07-13 12:29:46,884 | INFO | Application.stop() complete
-Jul 13 12:29:47 rnv-projects systemd[1]: buhbot.service: Deactivated successfully.
-Jul 13 12:29:47 rnv-projects systemd[1]: Stopped Telegram Finance Bot.
-Jul 13 12:29:47 rnv-projects systemd[1]: buhbot.service: Consumed 26.131s CPU time.
-Jul 13 12:29:47 rnv-projects systemd[1]: Started Telegram Finance Bot.
-Jul 13 12:29:51 rnv-projects python[326302]: 2026-07-13 12:29:51,273 | INFO | 🚀 Запускаем бота с памятью...
-Jul 13 12:29:51 rnv-projects python[326302]: 2026-07-13 12:29:51,415 | INFO | ✅ Бот с памятью готов!
-Jul 13 12:29:51 rnv-projects python[326302]: 2026-07-13 12:29:51,536 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getMe "HTTP/1.1 200 OK"
-Jul 13 12:29:51 rnv-projects python[326302]: 2026-07-13 12:29:51,568 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/deleteWebhook "HTTP/1.1 200 OK"
-Jul 13 12:29:51 rnv-projects python[326302]: 2026-07-13 12:29:51,573 | INFO | Application started
-Jul 13 12:30:01 rnv-projects python[326302]: 2026-07-13 12:30:01,706 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:30:11 rnv-projects python[326302]: 2026-07-13 12:30:11,757 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:30:21 rnv-projects python[326302]: 2026-07-13 12:30:21,803 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:30:31 rnv-projects python[326302]: 2026-07-13 12:30:31,847 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:30:41 rnv-projects python[326302]: 2026-07-13 12:30:41,888 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:30:51 rnv-projects python[326302]: 2026-07-13 12:30:51,934 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:01 rnv-projects python[326302]: 2026-07-13 12:31:01,983 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:12 rnv-projects python[326302]: 2026-07-13 12:31:12,023 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:22 rnv-projects python[326302]: 2026-07-13 12:31:22,061 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:32 rnv-projects python[326302]: 2026-07-13 12:31:32,108 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:40 rnv-projects python[326302]: 2026-07-13 12:31:40,261 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:40 rnv-projects python[326302]: 2026-07-13 12:31:40,383 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
-Jul 13 12:31:40 rnv-projects python[326302]: 2026-07-13 12:31:40,436 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
-Jul 13 12:31:40 rnv-projects python[326302]: 2026-07-13 12:31:40,490 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_92.oga "HTTP/1.1 200 OK"
-Jul 13 12:31:40 rnv-projects python[326302]: 2026-07-13 12:31:40,963 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
-Jul 13 12:31:40 rnv-projects python[326302]: 2026-07-13 12:31:40,970 | INFO | 🎤 Распознано: Продал дом на 23 миллиона рублей.
-Jul 13 12:31:41 rnv-projects python[326302]: 2026-07-13 12:31:41,074 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:31:41 rnv-projects python[326302]: 2026-07-13 12:31:41,121 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
-Jul 13 12:31:41 rnv-projects python[326302]: 2026-07-13 12:31:41,123 | INFO | 🤖 Отправляем анализ в DeepSeek...
-Jul 13 12:31:42 rnv-projects python[326302]: 2026-07-13 12:31:42,450 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
-Jul 13 12:31:43 rnv-projects python[326302]: 2026-07-13 12:31:43,670 | INFO | 🤖 ИИ-анализ: {
-Jul 13 12:31:43 rnv-projects python[326302]:   "transactions": [{"type": "income", "amount": 23000000, "category": "другое", "description": "продажа дома"}],
-Jul 13 12:31:43 rnv-projects python[326302]:   "profile": {},
-Jul 13 12:31:43 rnv-projects python[326302]:   "goals": [],
-Jul 13 12:31:43 rnv-projects python[326302]:   "debts": [],
-Jul 13 12:31:43 rnv-projects python[326302]:   "actions": []
-Jul 13 12:31:43 rnv-projects python[326302]: }
-Jul 13 12:31:43 rnv-projects python[326302]: 2026-07-13 12:31:43,731 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:31:46 rnv-projects python[326302]: 2026-07-13 12:31:46,343 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:31:46 rnv-projects python[326302]: 2026-07-13 12:31:46,400 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/answerCallbackQuery "HTTP/1.1 200 OK"
-Jul 13 12:31:46 rnv-projects python[326302]: 2026-07-13 12:31:46,452 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/editMessageText "HTTP/1.1 200 OK"
-Jul 13 12:31:47 rnv-projects python[326302]: 2026-07-13 12:31:47,272 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions "HTTP/2 201 Created"
-Jul 13 12:31:47 rnv-projects python[326302]: 2026-07-13 12:31:47,289 | INFO | 💾 Сохранено: income | 23000000.0 | другое | продажа дома
-Jul 13 12:31:47 rnv-projects python[326302]: 2026-07-13 12:31:47,711 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/user_profile?select=key%2C%20value "HTTP/2 200 OK"
-Jul 13 12:31:47 rnv-projects python[326302]: 2026-07-13 12:31:47,935 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category "HTTP/2 200 OK"
-Jul 13 12:31:48 rnv-projects python[326302]: 2026-07-13 12:31:48,191 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category&created_at=gte.2026-07-01T00%3A00%3A00%2B05%3A00 "HTTP/2 200 OK"
-Jul 13 12:31:48 rnv-projects python[326302]: 2026-07-13 12:31:48,502 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/goals?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:31:48 rnv-projects python[326302]: 2026-07-13 12:31:48,788 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/debts?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:31:49 rnv-projects python[326302]: 2026-07-13 12:31:49,041 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history?select=role%2C%20content&order=created_at.desc&limit=20 "HTTP/2 200 OK"
-Jul 13 12:31:49 rnv-projects python[326302]: 2026-07-13 12:31:49,049 | INFO | 🤖 Отправляем ответ в DeepSeek...
-Jul 13 12:31:49 rnv-projects python[326302]: 2026-07-13 12:31:49,387 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
-Jul 13 12:31:51 rnv-projects python[326302]: 2026-07-13 12:31:51,420 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
-Jul 13 12:31:51 rnv-projects python[326302]: 2026-07-13 12:31:51,721 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
-Jul 13 12:31:51 rnv-projects python[326302]: 2026-07-13 12:31:51,862 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/editMessageText "HTTP/1.1 200 OK"
-Jul 13 12:31:56 rnv-projects python[326302]: 2026-07-13 12:31:56,398 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:06 rnv-projects python[326302]: 2026-07-13 12:32:06,438 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:14 rnv-projects python[326302]: 2026-07-13 12:32:14,482 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:14 rnv-projects python[326302]: 2026-07-13 12:32:14,895 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category%2C%20description%2C%20created_at&order=created_at.desc&limit=7 "HTTP/2 200 OK"
-Jul 13 12:32:15 rnv-projects python[326302]: 2026-07-13 12:32:15,052 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:32:24 rnv-projects python[326302]: 2026-07-13 12:32:24,043 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:24 rnv-projects python[326302]: 2026-07-13 12:32:24,311 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category "HTTP/2 200 OK"
-Jul 13 12:32:24 rnv-projects python[326302]: 2026-07-13 12:32:24,659 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/goals?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:32:24 rnv-projects python[326302]: 2026-07-13 12:32:24,898 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:32:34 rnv-projects python[326302]: 2026-07-13 12:32:34,730 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:39 rnv-projects python[326302]: 2026-07-13 12:32:39,766 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:39 rnv-projects python[326302]: 2026-07-13 12:32:39,979 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,085 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,132 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_93.oga "HTTP/1.1 200 OK"
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,463 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,467 | INFO | 🎤 Распознано: Ясно... Петти.
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,534 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,597 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,599 | INFO | 🤖 Отправляем анализ в DeepSeek...
-Jul 13 12:32:40 rnv-projects python[326302]: 2026-07-13 12:32:40,986 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
-Jul 13 12:32:41 rnv-projects python[326302]: 2026-07-13 12:32:41,882 | INFO | 🤖 ИИ-анализ: {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[]}
-Jul 13 12:32:42 rnv-projects python[326302]: 2026-07-13 12:32:42,389 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/user_profile?select=key%2C%20value "HTTP/2 200 OK"
-Jul 13 12:32:42 rnv-projects python[326302]: 2026-07-13 12:32:42,831 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category "HTTP/2 200 OK"
-Jul 13 12:32:43 rnv-projects python[326302]: 2026-07-13 12:32:43,253 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category&created_at=gte.2026-07-01T00%3A00%3A00%2B05%3A00 "HTTP/2 200 OK"
-Jul 13 12:32:43 rnv-projects python[326302]: 2026-07-13 12:32:43,629 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/goals?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:32:43 rnv-projects python[326302]: 2026-07-13 12:32:43,986 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/debts?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:32:44 rnv-projects python[326302]: 2026-07-13 12:32:44,411 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history?select=role%2C%20content&order=created_at.desc&limit=20 "HTTP/2 200 OK"
-Jul 13 12:32:44 rnv-projects python[326302]: 2026-07-13 12:32:44,416 | INFO | 🤖 Отправляем ответ в DeepSeek...
-Jul 13 12:32:44 rnv-projects python[326302]: 2026-07-13 12:32:44,776 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
-Jul 13 12:32:46 rnv-projects python[326302]: 2026-07-13 12:32:46,988 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
-Jul 13 12:32:47 rnv-projects python[326302]: 2026-07-13 12:32:47,388 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
-Jul 13 12:32:47 rnv-projects python[326302]: 2026-07-13 12:32:47,545 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:32:49 rnv-projects python[326302]: 2026-07-13 12:32:49,816 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,230 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,374 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,432 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,470 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_94.oga "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,741 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,744 | INFO | 🎤 Распознано: Я... 10 тысяч.
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,814 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,871 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
-Jul 13 12:32:56 rnv-projects python[326302]: 2026-07-13 12:32:56,872 | INFO | 🤖 Отправляем анализ в DeepSeek...
-Jul 13 12:32:57 rnv-projects python[326302]: 2026-07-13 12:32:57,209 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
-Jul 13 12:32:58 rnv-projects python[326302]: 2026-07-13 12:32:58,195 | INFO | 🤖 ИИ-анализ: {
-Jul 13 12:32:58 rnv-projects python[326302]:   "transactions": [],
-Jul 13 12:32:58 rnv-projects python[326302]:   "profile": {},
-Jul 13 12:32:58 rnv-projects python[326302]:   "goals": [],
-Jul 13 12:32:58 rnv-projects python[326302]:   "debts": [],
-Jul 13 12:32:58 rnv-projects python[326302]:   "actions": []
-Jul 13 12:32:58 rnv-projects python[326302]: }
-Jul 13 12:32:58 rnv-projects python[326302]: 2026-07-13 12:32:58,291 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
-Jul 13 12:33:00 rnv-projects python[326302]: 2026-07-13 12:33:00,390 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:33:00 rnv-projects python[326302]: 2026-07-13 12:33:00,446 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/answerCallbackQuery "HTTP/1.1 200 OK"
-Jul 13 12:33:00 rnv-projects python[326302]: 2026-07-13 12:33:00,511 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/editMessageText "HTTP/1.1 200 OK"
-Jul 13 12:33:04 rnv-projects python[326302]: 2026-07-13 12:33:04,706 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:33:04 rnv-projects python[326302]: 2026-07-13 12:33:04,757 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/answerCallbackQuery "HTTP/1.1 200 OK"
-Jul 13 12:33:04 rnv-projects python[326302]: 2026-07-13 12:33:04,821 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/editMessageText "HTTP/1.1 200 OK"
-Jul 13 12:33:06 rnv-projects python[326302]: 2026-07-13 12:33:06,037 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:33:06 rnv-projects python[326302]: 2026-07-13 12:33:06,096 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/answerCallbackQuery "HTTP/1.1 200 OK"
-Jul 13 12:33:06 rnv-projects python[326302]: 2026-07-13 12:33:06,164 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/editMessageText "HTTP/1.1 200 OK"
-Jul 13 12:33:06 rnv-projects python[326302]: 2026-07-13 12:33:06,558 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions "HTTP/2 201 Created"
-Jul 13 12:33:06 rnv-projects python[326302]: 2026-07-13 12:33:06,564 | INFO | 💾 Сохранено: expense | 10000.0 | другое |
-Jul 13 12:33:06 rnv-projects python[326302]: 2026-07-13 12:33:06,871 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/user_profile?select=key%2C%20value "HTTP/2 200 OK"
-Jul 13 12:33:07 rnv-projects python[326302]: 2026-07-13 12:33:07,107 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category "HTTP/2 200 OK"
-Jul 13 12:33:07 rnv-projects python[326302]: 2026-07-13 12:33:07,390 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category&created_at=gte.2026-07-01T00%3A00%3A00%2B05%3A00 "HTTP/2 200 OK"
-Jul 13 12:33:08 rnv-projects python[326302]: 2026-07-13 12:33:08,635 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/goals?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:33:08 rnv-projects python[326302]: 2026-07-13 12:33:08,948 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/debts?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
-Jul 13 12:33:09 rnv-projects python[326302]: 2026-07-13 12:33:09,217 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history?select=role%2C%20content&order=created_at.desc&limit=20 "HTTP/2 200 OK"
-Jul 13 12:33:09 rnv-projects python[326302]: 2026-07-13 12:33:09,220 | INFO | 🤖 Отправляем ответ в DeepSeek...
-Jul 13 12:33:09 rnv-projects python[326302]: 2026-07-13 12:33:09,561 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
-Jul 13 12:33:11 rnv-projects python[326302]: 2026-07-13 12:33:11,230 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
-Jul 13 12:33:11 rnv-projects python[326302]: 2026-07-13 12:33:11,606 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
-Jul 13 12:33:11 rnv-projects python[326302]: 2026-07-13 12:33:11,760 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/editMessageText "HTTP/1.1 200 OK"
-Jul 13 12:33:16 rnv-projects python[326302]: 2026-07-13 12:33:16,098 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:33:26 rnv-projects python[326302]: 2026-07-13 12:33:26,148 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-Jul 13 12:33:36 rnv-projects python[326302]: 2026-07-13 12:33:36,192 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
-root@rnv-projects:~/buh_bot#
+root@rnv-projects:~/buh_bot# journalctl -u buhbot -n 150 --no-pager
+Jul 13 16:49:04 rnv-projects python[330606]: 2026-07-13 16:49:04,165 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:49:14 rnv-projects python[330606]: 2026-07-13 16:49:14,206 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:49:24 rnv-projects python[330606]: 2026-07-13 16:49:24,251 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:49:34 rnv-projects python[330606]: 2026-07-13 16:49:34,292 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:49:44 rnv-projects python[330606]: 2026-07-13 16:49:44,331 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:49:54 rnv-projects python[330606]: 2026-07-13 16:49:54,372 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:50:04 rnv-projects python[330606]: 2026-07-13 16:50:04,415 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:50:14 rnv-projects python[330606]: 2026-07-13 16:50:14,459 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:50:24 rnv-projects python[330606]: 2026-07-13 16:50:24,500 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:50:34 rnv-projects python[330606]: 2026-07-13 16:50:34,541 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:50:44 rnv-projects python[330606]: 2026-07-13 16:50:44,586 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:50:54 rnv-projects python[330606]: 2026-07-13 16:50:54,628 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:51:04 rnv-projects python[330606]: 2026-07-13 16:51:04,671 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:51:14 rnv-projects python[330606]: 2026-07-13 16:51:14,713 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:51:24 rnv-projects python[330606]: 2026-07-13 16:51:24,753 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:51:34 rnv-projects python[330606]: 2026-07-13 16:51:34,792 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:51:44 rnv-projects python[330606]: 2026-07-13 16:51:44,831 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:51:54 rnv-projects python[330606]: 2026-07-13 16:51:54,872 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:52:04 rnv-projects python[330606]: 2026-07-13 16:52:04,914 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:52:14 rnv-projects python[330606]: 2026-07-13 16:52:14,959 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:52:25 rnv-projects python[330606]: 2026-07-13 16:52:25,012 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:52:35 rnv-projects python[330606]: 2026-07-13 16:52:35,069 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:52:45 rnv-projects python[330606]: 2026-07-13 16:52:45,112 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:52:55 rnv-projects python[330606]: 2026-07-13 16:52:55,155 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:53:05 rnv-projects python[330606]: 2026-07-13 16:53:05,201 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:53:15 rnv-projects python[330606]: 2026-07-13 16:53:15,247 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:53:25 rnv-projects python[330606]: 2026-07-13 16:53:25,290 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:53:35 rnv-projects python[330606]: 2026-07-13 16:53:35,333 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:53:45 rnv-projects python[330606]: 2026-07-13 16:53:45,375 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:53:55 rnv-projects python[330606]: 2026-07-13 16:53:55,416 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:54:02 rnv-projects systemd[1]: Stopping Telegram Finance Bot...
+Jul 13 16:54:02 rnv-projects python[330606]: 2026-07-13 16:54:02,755 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:54:02 rnv-projects python[330606]: 2026-07-13 16:54:02,758 | INFO | Application is stopping. This might take a moment.
+Jul 13 16:54:02 rnv-projects python[330606]: 2026-07-13 16:54:02,759 | INFO | Application.stop() complete
+Jul 13 16:54:03 rnv-projects systemd[1]: buhbot.service: Deactivated successfully.
+Jul 13 16:54:03 rnv-projects systemd[1]: Stopped Telegram Finance Bot.
+Jul 13 16:54:03 rnv-projects systemd[1]: buhbot.service: Consumed 14.189s CPU time.
+Jul 13 16:54:03 rnv-projects systemd[1]: Started Telegram Finance Bot.
+Jul 13 16:54:06 rnv-projects python[331102]: 2026-07-13 16:54:06,156 | INFO | 🚀 Запускаем бота с памятью...
+Jul 13 16:54:06 rnv-projects python[331102]: 2026-07-13 16:54:06,377 | INFO | ✅ Бот с памятью готов!
+Jul 13 16:54:06 rnv-projects python[331102]: 2026-07-13 16:54:06,509 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getMe "HTTP/1.1 200 OK"
+Jul 13 16:54:06 rnv-projects python[331102]: 2026-07-13 16:54:06,547 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/deleteWebhook "HTTP/1.1 200 OK"
+Jul 13 16:54:06 rnv-projects python[331102]: 2026-07-13 16:54:06,550 | INFO | Application started
+Jul 13 16:54:16 rnv-projects python[331102]: 2026-07-13 16:54:16,655 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:54:26 rnv-projects python[331102]: 2026-07-13 16:54:26,693 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:54:36 rnv-projects python[331102]: 2026-07-13 16:54:36,732 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:54:46 rnv-projects python[331102]: 2026-07-13 16:54:46,771 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:54:56 rnv-projects python[331102]: 2026-07-13 16:54:56,809 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:55:06 rnv-projects python[331102]: 2026-07-13 16:55:06,851 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:55:16 rnv-projects python[331102]: 2026-07-13 16:55:16,896 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:55:26 rnv-projects python[331102]: 2026-07-13 16:55:26,938 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:55:36 rnv-projects python[331102]: 2026-07-13 16:55:36,976 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:55:47 rnv-projects python[331102]: 2026-07-13 16:55:47,016 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:55:57 rnv-projects python[331102]: 2026-07-13 16:55:57,079 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:56:07 rnv-projects python[331102]: 2026-07-13 16:56:07,125 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:56:17 rnv-projects python[331102]: 2026-07-13 16:56:17,167 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:56:27 rnv-projects python[331102]: 2026-07-13 16:56:27,217 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:56:37 rnv-projects python[331102]: 2026-07-13 16:56:37,265 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:56:47 rnv-projects python[331102]: 2026-07-13 16:56:47,308 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:56:57 rnv-projects python[331102]: 2026-07-13 16:56:57,353 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:07 rnv-projects python[331102]: 2026-07-13 16:57:07,392 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:17 rnv-projects python[331102]: 2026-07-13 16:57:17,435 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:27 rnv-projects python[331102]: 2026-07-13 16:57:27,473 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:37 rnv-projects python[331102]: 2026-07-13 16:57:37,511 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:38 rnv-projects python[331102]: 2026-07-13 16:57:38,979 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:39 rnv-projects python[331102]: 2026-07-13 16:57:39,124 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:57:39 rnv-projects python[331102]: 2026-07-13 16:57:39,741 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
+Jul 13 16:57:39 rnv-projects python[331102]: 2026-07-13 16:57:39,780 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_103.oga "HTTP/1.1 200 OK"
+Jul 13 16:57:40 rnv-projects python[331102]: 2026-07-13 16:57:40,255 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
+Jul 13 16:57:40 rnv-projects python[331102]: 2026-07-13 16:57:40,262 | INFO | 🎤 Распознано: Какой у меня баланс?
+Jul 13 16:57:40 rnv-projects python[331102]: 2026-07-13 16:57:40,343 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:57:40 rnv-projects python[331102]: 2026-07-13 16:57:40,393 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:57:41 rnv-projects python[331102]: 2026-07-13 16:57:41,224 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category "HTTP/2 200 OK"
+Jul 13 16:57:41 rnv-projects python[331102]: 2026-07-13 16:57:41,571 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/goals?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
+Jul 13 16:57:41 rnv-projects python[331102]: 2026-07-13 16:57:41,648 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:57:48 rnv-projects python[331102]: 2026-07-13 16:57:48,461 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:57:48 rnv-projects python[331102]: 2026-07-13 16:57:48,605 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:57:48 rnv-projects python[331102]: 2026-07-13 16:57:48,651 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
+Jul 13 16:57:48 rnv-projects python[331102]: 2026-07-13 16:57:48,685 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_104.oga "HTTP/1.1 200 OK"
+Jul 13 16:57:48 rnv-projects python[331102]: 2026-07-13 16:57:48,997 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
+Jul 13 16:57:49 rnv-projects python[331102]: 2026-07-13 16:57:49,001 | INFO | 🎤 Распознано: Покажи историю.
+Jul 13 16:57:49 rnv-projects python[331102]: 2026-07-13 16:57:49,071 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:57:49 rnv-projects python[331102]: 2026-07-13 16:57:49,174 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:57:49 rnv-projects python[331102]: 2026-07-13 16:57:49,176 | ERROR | No error handlers are registered, logging exception.
+Jul 13 16:57:49 rnv-projects python[331102]: Traceback (most recent call last):
+Jul 13 16:57:49 rnv-projects python[331102]:   File "/root/buh_bot/venv/lib/python3.10/site-packages/telegram/ext/_application.py", line 1325, in process_update
+Jul 13 16:57:49 rnv-projects python[331102]:     await coroutine
+Jul 13 16:57:49 rnv-projects python[331102]:   File "/root/buh_bot/venv/lib/python3.10/site-packages/telegram/ext/_handlers/basehandler.py", line 158, in handle_update
+Jul 13 16:57:49 rnv-projects python[331102]:     return await self.callback(update, context)
+Jul 13 16:57:49 rnv-projects python[331102]:   File "/root/buh_bot/bot.py", line 64, in wrapper
+Jul 13 16:57:49 rnv-projects python[331102]:     return await func(update, context)
+Jul 13 16:57:49 rnv-projects python[331102]:   File "/root/buh_bot/bot.py", line 1482, in handle_voice
+Jul 13 16:57:49 rnv-projects python[331102]:     await process_text(update, context, text)
+Jul 13 16:57:49 rnv-projects python[331102]:   File "/root/buh_bot/bot.py", line 1233, in process_text
+Jul 13 16:57:49 rnv-projects python[331102]:     if intent == "history": return await history(update, context)
+Jul 13 16:57:49 rnv-projects python[331102]: UnboundLocalError: local variable 'history' referenced before assignment
+Jul 13 16:57:58 rnv-projects python[331102]: 2026-07-13 16:57:58,504 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:08 rnv-projects python[331102]: 2026-07-13 16:58:08,545 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:08 rnv-projects python[331102]: 2026-07-13 16:58:08,929 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:08 rnv-projects python[331102]: 2026-07-13 16:58:08,935 | INFO | 📩 Сообщение: Покажи историю
+Jul 13 16:58:09 rnv-projects python[331102]: 2026-07-13 16:58:09,106 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:58:09 rnv-projects python[331102]: 2026-07-13 16:58:09,109 | ERROR | No error handlers are registered, logging exception.
+Jul 13 16:58:09 rnv-projects python[331102]: Traceback (most recent call last):
+Jul 13 16:58:09 rnv-projects python[331102]:   File "/root/buh_bot/venv/lib/python3.10/site-packages/telegram/ext/_application.py", line 1325, in process_update
+Jul 13 16:58:09 rnv-projects python[331102]:     await coroutine
+Jul 13 16:58:09 rnv-projects python[331102]:   File "/root/buh_bot/venv/lib/python3.10/site-packages/telegram/ext/_handlers/basehandler.py", line 158, in handle_update
+Jul 13 16:58:09 rnv-projects python[331102]:     return await self.callback(update, context)
+Jul 13 16:58:09 rnv-projects python[331102]:   File "/root/buh_bot/bot.py", line 64, in wrapper
+Jul 13 16:58:09 rnv-projects python[331102]:     return await func(update, context)
+Jul 13 16:58:09 rnv-projects python[331102]:   File "/root/buh_bot/bot.py", line 1452, in handle_message
+Jul 13 16:58:09 rnv-projects python[331102]:     await process_text(update, context, text)
+Jul 13 16:58:09 rnv-projects python[331102]:   File "/root/buh_bot/bot.py", line 1233, in process_text
+Jul 13 16:58:09 rnv-projects python[331102]:     if intent == "history": return await history(update, context)
+Jul 13 16:58:09 rnv-projects python[331102]: UnboundLocalError: local variable 'history' referenced before assignment
+Jul 13 16:58:18 rnv-projects python[331102]: 2026-07-13 16:58:18,979 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:29 rnv-projects python[331102]: 2026-07-13 16:58:29,021 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:34 rnv-projects python[331102]: 2026-07-13 16:58:34,923 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,104 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,310 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,347 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_105.oga "HTTP/1.1 200 OK"
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,552 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,557 | INFO | 🎤 Распознано: Кому я должен денег?
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,727 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:58:35 rnv-projects python[331102]: 2026-07-13 16:58:35,912 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:58:36 rnv-projects python[331102]: 2026-07-13 16:58:36,382 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/debts?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
+Jul 13 16:58:36 rnv-projects python[331102]: 2026-07-13 16:58:36,459 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,392 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,504 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,548 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getFile "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,586 | INFO | HTTP Request: GET https://api.telegram.org/file/bot7704813878%3AAAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/voice/file_106.oga "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,773 | INFO | HTTP Request: POST https://api.groq.com/openai/v1/audio/transcriptions "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,776 | INFO | 🎤 Распознано: Кто мне доложен денег?
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,838 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,884 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendChatAction "HTTP/1.1 200 OK"
+Jul 13 16:58:42 rnv-projects python[331102]: 2026-07-13 16:58:42,886 | INFO | 🤖 Отправляем анализ в DeepSeek...
+Jul 13 16:58:44 rnv-projects python[331102]: 2026-07-13 16:58:44,949 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
+Jul 13 16:58:45 rnv-projects python[331102]: 2026-07-13 16:58:45,743 | INFO | 🤖 ИИ-анализ: {"transactions":[],"profile":{},"goals":[],"debts":[],"actions":[]}
+Jul 13 16:58:46 rnv-projects python[331102]: 2026-07-13 16:58:46,038 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/user_profile?select=key%2C%20value "HTTP/2 200 OK"
+Jul 13 16:58:46 rnv-projects python[331102]: 2026-07-13 16:58:46,478 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category "HTTP/2 200 OK"
+Jul 13 16:58:46 rnv-projects python[331102]: 2026-07-13 16:58:46,852 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/transactions?select=type%2C%20amount%2C%20category&created_at=gte.2026-07-01T00%3A00%3A00%2B05%3A00 "HTTP/2 200 OK"
+Jul 13 16:58:47 rnv-projects python[331102]: 2026-07-13 16:58:47,344 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/goals?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
+Jul 13 16:58:47 rnv-projects python[331102]: 2026-07-13 16:58:47,738 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/debts?select=%2A&status=eq.active&order=created_at "HTTP/2 200 OK"
+Jul 13 16:58:48 rnv-projects python[331102]: 2026-07-13 16:58:48,125 | INFO | HTTP Request: GET https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history?select=role%2C%20content&order=created_at.desc&limit=20 "HTTP/2 200 OK"
+Jul 13 16:58:48 rnv-projects python[331102]: 2026-07-13 16:58:48,128 | INFO | 🤖 Отправляем ответ в DeepSeek...
+Jul 13 16:58:48 rnv-projects python[331102]: 2026-07-13 16:58:48,443 | INFO | HTTP Request: POST https://api.deepseek.com/chat/completions "HTTP/1.1 200 OK"
+Jul 13 16:58:51 rnv-projects python[331102]: 2026-07-13 16:58:51,252 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
+Jul 13 16:58:51 rnv-projects python[331102]: 2026-07-13 16:58:51,551 | INFO | HTTP Request: POST https://hhglymnxfgeecxzncblg.supabase.co/rest/v1/chat_history "HTTP/2 201 Created"
+Jul 13 16:58:51 rnv-projects python[331102]: 2026-07-13 16:58:51,689 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/sendMessage "HTTP/1.1 200 OK"
+Jul 13 16:58:52 rnv-projects python[331102]: 2026-07-13 16:58:52,437 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"
+Jul 13 16:59:02 rnv-projects python[331102]: 2026-07-13 16:59:02,476 | INFO | HTTP Request: POST https://api.telegram.org/bot7704813878:AAErvpYlFZty-RYTkAcMP39-RL0hWS8ArN4/getUpdates "HTTP/1.1 200 OK"

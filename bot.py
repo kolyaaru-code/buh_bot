@@ -1219,7 +1219,7 @@ def _is_command_intent(text: str) -> str | None:
     if "месяц" in s or "статистик" in s: return "month"
     if "категори" in s: return "categories"
     if "цели" in s or "копилк" in s: return "goals"
-    if "долги" in s or "должен" in s: return "debts"
+    if "долг" in s or "долж" in s or "доложен" in s: return "debts"
     if "профиль" in s: return "profile"
     
     return None
@@ -1366,11 +1366,12 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         return
 
     # Иначе — обычный разговор (или только профиль). Отвечает ИИ.
+    # Иначе — обычный разговор (или только профиль). Отвечает ИИ.
     ctx = load_context()
-    history = db.get_chat_history(20)
+    chat_hist = db.get_chat_history(20)
     saved_summary = "обновлён профиль" if analysis["profile"] else ""
     response = ai.chat_response(
-        text, history,
+        text, chat_hist,
         ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
         saved_summary=saved_summary,
     )
@@ -1417,10 +1418,10 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
 
     # 5. Свежий контекст, история, ответ ИИ
     ctx = load_context()
-    history = db.get_chat_history(20)
+    chat_hist = db.get_chat_history(20)
     saved_summary = "; ".join(saved_summary_parts)
     response = ai.chat_response(
-        raw_text, history,
+        raw_text, chat_hist,
         ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
         saved_summary=saved_summary,
     )
