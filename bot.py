@@ -164,8 +164,8 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         f"📊 Общий баланс\n"
         f"{'─' * 25}\n"
-        f"📥 Доходы:  {stats['income']:>12,.0f}\n"
-        f"📤 Расходы: {stats['expense']:>12,.0f}\n"
+        f"💰 Доходы:  {stats['income']:>12,.0f}\n"
+        f"🛒 Расходы: {stats['expense']:>12,.0f}\n"
         f"{'─' * 25}\n"
         f"{emoji} Всего:  {stats['balance']:>12,.0f}\n"
     )
@@ -188,8 +188,8 @@ async def month(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"📅 {monthly['month']}\n"
         f"{'─' * 25}\n"
-        f"📥 Доходы:  {monthly['income']:>12,.0f}\n"
-        f"📤 Расходы: {monthly['expense']:>12,.0f}\n"
+        f"💰 Доходы:  {monthly['income']:>12,.0f}\n"
+        f"🛒 Расходы: {monthly['expense']:>12,.0f}\n"
         f"{'─' * 25}\n"
         f"{emoji} Итого:  {monthly['balance']:>12,.0f}\n\n"
         f"📝 Операций за месяц: {monthly['count']}"
@@ -204,7 +204,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = "🕐 Последние записи:\n" + "─" * 25 + "\n"
     for t in transactions:
-        emoji = "📥" if t["type"] == "income" else "📤"
+        emoji = "💰" if t["type"] == "income" else "📤"
         date = _fmt_local_date(t.get("created_at"))
         text += (
             f"{emoji} {t['amount']:,.0f} — {t['category']}\n"
@@ -1206,11 +1206,38 @@ def _render_preview(pending: dict) -> str:
     body = "\n".join(f"  {ln}" for ln in lines)
     return f"🤔 Я понял так:\n{body}\n\nВсё верно?"
 
+def _is_command_intent(text: str) -> str | None:
+    """Перехватчик: проверяет, не просит ли пользователь базовую команду естественным языком."""
+    s = (text or "").lower()
+    
+    # Если текста слишком много (больше 50 символов), скорее всего это сложный запрос или несколько операций, отдаем ИИ
+    if len(s) > 50:
+        return None
+
+    if "баланс" in s or "остаток" in s: return "balance"
+    if "истори" in s or "последние" in s: return "history"
+    if "месяц" in s or "статистик" in s: return "month"
+    if "категори" in s: return "categories"
+    if "цели" in s or "копилк" in s: return "goals"
+    if "долги" in s or "должен" in s: return "debts"
+    if "профиль" in s: return "profile"
+    
+    return None
 
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     await _typing(update, context)
 
-    # 0. Если для черновика операции мы ждём значение поля — присланный текст трактуем
+    # 0. Перехват команд естественным языком (ДО любых обращений к ИИ)
+    intent = _is_command_intent(text)
+    if intent == "balance": return await balance(update, context)
+    if intent == "history": return await history(update, context)
+    if intent == "month": return await month(update, context)
+    if intent == "categories": return await categories(update, context)
+    if intent == "goals": return await goals(update, context)
+    if intent == "debts": return await debts(update, context)
+    if intent == "profile": return await profile(update, context)
+
+    # 1. Если для черновика операции мы ждём значение поля...
     #    как ЗНАЧЕНИЕ этого поля, а не как новую операцию (иначе «20» после кнопки «Сумма»
     #    распарсится как отдельное сообщение). Команды сюда не попадают — они всегда работают.
     draft = context.user_data.get("draft")
