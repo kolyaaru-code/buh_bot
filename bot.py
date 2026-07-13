@@ -102,7 +102,9 @@ async def _typing(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def _stash(context: ContextTypes.DEFAULT_TYPE, payload: dict) -> str:
     """Кладёт данные под короткий токен в bot_data, возвращает токен (для callback_data)."""
+    import time
     token = uuid.uuid4().hex[:12]
+    payload["_ts"] = time.time()  # Запоминаем время создания
     context.bot_data[f"pending_{token}"] = payload
     return token
 
@@ -111,6 +113,24 @@ def _unstash(context: ContextTypes.DEFAULT_TYPE, token: str) -> dict | None:
 
 def _drop(context: ContextTypes.DEFAULT_TYPE, token: str):
     context.bot_data.pop(f"pending_{token}", None)
+
+async def cleanup_old_tokens(context: ContextTypes.DEFAULT_TYPE):
+    """Фоновая задача: удаляет токены старше 24 часов (86400 секунд)."""
+    import time
+    now = time.time()
+    to_delete = []
+    
+    for key, val in context.bot_data.items():
+        if key.startswith("pending_"):
+            # Если метки нет (старые данные) или прошло больше 24 часов
+            if now - val.get("_ts", 0) > 86400:
+                to_delete.append(key)
+                
+    for key in to_delete:
+        context.bot_data.pop(key, None)
+        
+    if to_delete:
+        logger.info(f"🧹 Уборка: удалено зависших кнопок — {len(to_delete)}")
 
 # ============================================================
 # КОМАНДЫ
@@ -1519,6 +1539,9 @@ def main():
 
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
+
+    # Нанимаем уборщика: запускать каждый час (3600 сек), первый раз — через 10 сек после старта
+    app.job_queue.run_repeating(cleanup_old_tokens, interval=3600, first=10)
 
     logger.info("✅ Бот с памятью готов!")
     app.run_polling()
