@@ -320,6 +320,12 @@ def analyze_message(text: str) -> dict:
         raw = response.choices[0].message.content.strip()
         logger.info(f"🤖 ИИ-анализ: {raw}")
 
+        # --- Очистка от markdown (DeepSeek иногда оборачивает ответ в ```json ... ```) ---
+        if raw.startswith("```"):
+            raw = raw.strip("`").strip()
+            if raw.lower().startswith("json"):
+                raw = raw[4:].strip()
+
         data = json.loads(raw)
 
         # --- нормализация и валидация ---

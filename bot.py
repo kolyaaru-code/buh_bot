@@ -1158,6 +1158,13 @@ async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: st
         pending = {"transactions": [tx], "goals": [], "debts": [], "actions": []}
         raw_text = draft.get("description") or f"{tx['type']} {tx['amount']:.0f}"
         context.user_data.pop("draft", None)
+
+        # Скрываем кнопки и показываем статус
+        try:
+            await query.edit_message_text("⏳ Записываю…")
+        except Exception as e:
+            logger.error(f"❌ Не смог показать «Записываю…» в черновике: {e}")
+
         await _commit_analysis(query, context, pending, raw_text)
 
     elif action == "draft_cancel":
