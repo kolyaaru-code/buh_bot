@@ -601,15 +601,49 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
             )
 
         elif kind == "repay_no_debt":
-            token = _stash(context, q)
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("💸 Записать в расход", callback_data=f"q:repay_exp:{token}"),
-                InlineKeyboardButton("❌ Не учитывать",      callback_data=f"q:cancel_noop:{token}"),
-            ]])
+            # 1. Запрашиваем из базы все активные долги
+            active_debts = db.get_debts()
+            # 2. Фильтруем только те, где Я ДОЛЖЕН (i_owe)
+            my_debts = [d for d in active_debts if d["direction"] == "i_owe"]
+            
+            rows = []
+            # 3. Генерируем кнопки под каждый найденный долг
+            for d in my_debts:
+                tok = _stash(context, {"amount": q["amount"], "person": d["person"]})
+                rows.append([InlineKeyboardButton(f"👤 {d['person']} (остаток: {d['amount']:,.0f})", callback_data=f"q:repay_debt:{tok}")])
+            
+            # 4. Добавляем в конец списка стандартные кнопки фолбека
+            tok_fallback = _stash(context, q)
+            rows.append([InlineKeyboardButton("💸 Просто в расход", callback_data=f"q:repay_exp:{tok_fallback}")])
+            rows.append([InlineKeyboardButton("❌ Не учитывать", callback_data=f"q:cancel_noop:{tok_fallback}")])
+            
             await message.reply_text(
-                f"Долга перед «{q['person']}» не нашёл.\n"
-                f"Записать {q['amount']:,.0f} как обычный расход?",
-                reply_markup=kb,
+                f"Долга перед «{q['person']}» не нашёл. Возможно, имя записано иначе?\n"
+                f"Выбери долг из списка ниже или запиши просто как расход:",
+                reply_markup=InlineKeyboardMarkup(rows),
+            )
+
+        elif kind == "return_no_debt":
+            # 1. Запрашиваем из базы все активные долги
+            active_debts = db.get_debts()
+            # 2. Фильтруем только те, где ДОЛЖНЫ МНЕ (owe_me)
+            their_debts = [d for d in active_debts if d["direction"] == "owe_me"]
+            
+            rows = []
+            # 3. Генерируем кнопки под каждый найденный долг
+            for d in their_debts:
+                tok = _stash(context, {"amount": q["amount"], "person": d["person"]})
+                rows.append([InlineKeyboardButton(f"👤 {d['person']} (остаток: {d['amount']:,.0f})", callback_data=f"q:return_debt:{tok}")])
+            
+            # 4. Добавляем в конец списка стандартные кнопки фолбека
+            tok_fallback = _stash(context, q)
+            rows.append([InlineKeyboardButton("💰 Просто в доход", callback_data=f"q:return_inc:{tok_fallback}")])
+            rows.append([InlineKeyboardButton("❌ Не учитывать", callback_data=f"q:cancel_noop:{tok_fallback}")])
+            
+            await message.reply_text(
+                f"Долга «{q['person']} должен мне» не нашёл. Возможно, имя записано иначе?\n"
+                f"Выбери долг из списка ниже или запиши просто как доход:",
+                reply_markup=InlineKeyboardMarkup(rows),
             )
 
         elif kind == "return_no_debt":
