@@ -601,27 +601,42 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
             )
 
         elif kind == "repay_no_debt":
+            # Достаем все долги, где "я должен"
+            active_debts = [d for d in db.get_debts() if d["direction"] == "i_owe"]
+            kb_rows = []
+            
+            # Генерируем кнопку для каждого существующего долга
+            for d in active_debts:
+                dtok = _stash(context, {"amount": q["amount"], "debt_id": d["id"], "person": d["person"]})
+                kb_rows.append([InlineKeyboardButton(f"👤 {d['person']} (остаток {d['amount']:,.0f})", callback_data=f"q:repay_fix:{dtok}")])
+                
             token = _stash(context, q)
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("💸 Записать в расход", callback_data=f"q:repay_exp:{token}"),
-                InlineKeyboardButton("❌ Не учитывать",      callback_data=f"q:cancel_noop:{token}"),
-            ]])
+            kb_rows.append([InlineKeyboardButton("💸 Просто в расход", callback_data=f"q:repay_exp:{token}")])
+            kb_rows.append([InlineKeyboardButton("❌ Отмена", callback_data=f"q:cancel_noop:{token}")])
+            
             await message.reply_text(
-                f"Долга перед «{q['person']}» не нашёл.\n"
-                f"Записать {q['amount']:,.0f} как обычный расход?",
-                reply_markup=kb,
+                f"🤔 Долга перед «{q['person']}» не нашёл. Возможно, опечатка?\n"
+                f"Выбери нужный из списка или запиши как обычный расход:",
+                reply_markup=InlineKeyboardMarkup(kb_rows),
             )
 
         elif kind == "return_no_debt":
+            # Достаем все долги, где "должны мне"
+            active_debts = [d for d in db.get_debts() if d["direction"] == "owe_me"]
+            kb_rows = []
+            
+            for d in active_debts:
+                dtok = _stash(context, {"amount": q["amount"], "debt_id": d["id"], "person": d["person"]})
+                kb_rows.append([InlineKeyboardButton(f"👤 {d['person']} (остаток {d['amount']:,.0f})", callback_data=f"q:return_fix:{dtok}")])
+                
             token = _stash(context, q)
-            kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("💰 Записать в доход", callback_data=f"q:return_inc:{token}"),
-                InlineKeyboardButton("❌ Не учитывать",     callback_data=f"q:cancel_noop:{token}"),
-            ]])
+            kb_rows.append([InlineKeyboardButton("💰 Просто в доход", callback_data=f"q:return_inc:{token}")])
+            kb_rows.append([InlineKeyboardButton("❌ Отмена", callback_data=f"q:cancel_noop:{token}")])
+            
             await message.reply_text(
-                f"Долга «{q['person']} должен мне» не нашёл.\n"
-                f"Записать {q['amount']:,.0f} как доход?",
-                reply_markup=kb,
+                f"🤔 Долга «{q['person']} должен мне» не нашёл.\n"
+                f"Выбери нужный из списка или запиши как обычный доход:",
+                reply_markup=InlineKeyboardMarkup(kb_rows),
             )
 
         elif kind == "cancel":
@@ -850,6 +865,46 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         db.save_transaction("income", payload["amount"], "возврат долга",
                             f"возврат (долг не найден): {payload['person']}")
         await query.edit_message_text(f"💰 Записал {payload['amount']:,.0f} как доход.")
+
+    # --- ИСПРАВЛЕНИЕ: выбрали реальный долг для погашения (я вернул) ---
+    elif action == "repay_fix":
+        debt_id = payload["debt_id"]
+        amount = payload["amount"]
+        person = payload["person"]
+        
+        db.save_transaction("expense", amount, "погашение долга",
+                            f"погашение долга: {person}", debt_id=debt_id)
+        updated = db.reduce_debt(debt_id, amount)
+        
+        if updated and updated.get("status") == "paid":
+            await query.edit_message_text(f"✅ Долг перед {person} погашен полностью (−{amount:,.0f} с баланса)")
+        elif updated:
+            await query.edit_message_text(
+                f"📉 Долг перед {person} уменьшен на {amount:,.0f} "
+                f"(остаток {updated['amount']:,.0f}, списано с баланса)"
+            )
+        else:
+            await query.edit_message_text("⚠️ Ошибка при обновлении долга.")
+
+    # --- ИСПРАВЛЕНИЕ: выбрали реальный долг для возврата (мне вернули) ---
+    elif action == "return_fix":
+        debt_id = payload["debt_id"]
+        amount = payload["amount"]
+        person = payload["person"]
+        
+        db.save_transaction("income", amount, "возврат долга",
+                            f"возврат долга от: {person}", debt_id=debt_id)
+        updated = db.reduce_debt(debt_id, amount)
+        
+        if updated and updated.get("status") == "paid":
+            await query.edit_message_text(f"✅ {person} вернул долг полностью (+{amount:,.0f} на баланс)")
+        elif updated:
+            await query.edit_message_text(
+                f"📈 {person} вернул {amount:,.0f} "
+                f"(остаток долга {updated['amount']:,.0f}, зачислено на баланс)"
+            )
+        else:
+            await query.edit_message_text("⚠️ Ошибка при обновлении долга.")
 
     # --- отмена операции: подтверждено ---
     elif action == "cancel_yes":
