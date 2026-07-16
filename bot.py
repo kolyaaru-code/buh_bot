@@ -1311,7 +1311,14 @@ def _is_command_intent(text: str) -> str | None:
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     await _typing(update, context)
 
-    # 0. Перехват команд естественным языком (ДО любых обращений к ИИ)
+    # 1. FSM: Если мы находимся в состоянии заполнения черновика,
+    # перехватываем ВЕСЬ текст как ответ на вопрос бота, игнорируя команды.
+    draft = context.user_data.get("draft")
+    if draft and draft.get("awaiting"):
+        await _apply_draft_field(update, context, text)
+        return
+
+    # 2. Перехват команд естественным языком (выполняется только если мы НЕ в черновике)
     intent = _is_command_intent(text)
     if intent == "balance": return await balance(update, context)
     if intent == "history": return await history(update, context)
@@ -1320,14 +1327,6 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     if intent == "goals": return await goals(update, context)
     if intent == "debts": return await debts(update, context)
     if intent == "profile": return await profile(update, context)
-
-    # 1. Если для черновика операции мы ждём значение поля...
-    #    как ЗНАЧЕНИЕ этого поля, а не как новую операцию (иначе «20» после кнопки «Сумма»
-    #    распарсится как отдельное сообщение). Команды сюда не попадают — они всегда работают.
-    draft = context.user_data.get("draft")
-    if draft and draft.get("awaiting"):
-        await _apply_draft_field(update, context, text)
-        return
 
     analysis = ai.analyze_message(text)
 

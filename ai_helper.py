@@ -37,28 +37,36 @@ DEEPSEEK_MODEL = "deepseek-chat"
 def _to_float(value) -> float | None:
     if value is None:
         return None
-    if isinstance(value, (int, float)):
-        return float(value)
-    # это строка — чистим от пробелов, валюты, разделителей тысяч
-    s = str(value).strip().lower()
-    for junk in ["руб", "р.", "р", "₽", "rub", " ", "\u00a0"]:
-        s = s.replace(junk, "")
-    s = s.replace(",", ".")
+        
+    val = None
     
-    # ПРАВИЛО 3 ЦИФР: если точка ровно одна и после неё 3 цифры — это тысячи
-    if s.count(".") == 1:
-        if len(s.split(".")[1]) == 3:
+    # 1. Если это уже число (пришло напрямую из JSON)
+    if isinstance(value, (int, float)):
+        val = float(value)
+    else:
+        # 2. Если это строка — чистим от мусора
+        s = str(value).strip().lower()
+        for junk in ["руб", "р.", "р", "₽", "rub", " ", "\u00a0"]:
+            s = s.replace(junk, "")
+        s = s.replace(",", ".")
+        
+        # ПРАВИЛО 3 ЦИФР: если точка ровно одна и после неё 3 цифры — это тысячи
+        if s.count(".") == 1:
+            if len(s.split(".")[1]) == 3:
+                s = s.replace(".", "")
+        elif s.count(".") > 1:
             s = s.replace(".", "")
-    # если осталось несколько точек (например, 1.000.000) — берём число без них
-    elif s.count(".") > 1:
-        s = s.replace(".", "")
-    try:
-        val = float(s)
-        if val > 1_000_000_000:  # Защита БД от Numeric Overflow (максимум 1 млрд)
+            
+        try:
+            val = float(s)
+        except (ValueError, TypeError):
             return None
-        return val
-    except (ValueError, TypeError):
+
+    # 3. ЕДИНАЯ ЗАЩИТА (сработает и для JSON, и для текста)
+    if val is not None and val > 1_000_000_000:
         return None
+        
+    return val
 
 
 # ============================================================
