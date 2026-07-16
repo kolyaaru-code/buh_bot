@@ -1109,6 +1109,10 @@ def _parse_amount(text: str):
         val = float(raw) * mult
     except ValueError:
         return None
+        
+    if val > 1_000_000_000:  # Защита БД от Numeric Overflow (максимум 1 млрд)
+        return None
+        
     return val if val > 0 else None
 
 

@@ -53,7 +53,10 @@ def _to_float(value) -> float | None:
     elif s.count(".") > 1:
         s = s.replace(".", "")
     try:
-        return float(s)
+        val = float(s)
+        if val > 1_000_000_000:  # Защита БД от Numeric Overflow (максимум 1 млрд)
+            return None
+        return val
     except (ValueError, TypeError):
         return None
 
