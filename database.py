@@ -278,15 +278,20 @@ def get_profile(tg_id: int) -> dict:
         logger.error(f"❌ Ошибка получения профиля: {e}")
         return {}
 
-def set_profile(key: str, value: str) -> bool:
+def set_profile(tg_id: int, key: str, value: str) -> bool:
     """Сохранить или обновить поле профиля"""
     try:
         db = get_client()
-        # upsert = обнови если есть, создай если нет
-        db.table("user_profile").upsert({
-            "key":   key,
-            "value": value,
-        }, on_conflict="key").execute()
+        # Ищем, есть ли уже такой ключ у ЭТОГО пользователя
+        existing = db.table("user_profile").select("id").eq("user_tg_id", tg_id).eq("key", key).execute()
+        
+        if existing.data:
+            # Обновляем старую запись
+            db.table("user_profile").update({"value": value}).eq("id", existing.data[0]["id"]).execute()
+        else:
+            # Создаем новую запись
+            db.table("user_profile").insert({"user_tg_id": tg_id, "key": key, "value": value}).execute()
+            
         logger.info(f"👤 Профиль обновлён: {key} = {value}")
         return True
     except Exception as e:
