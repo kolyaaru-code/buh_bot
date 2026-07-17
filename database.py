@@ -443,38 +443,25 @@ def get_saved_in_goals(tg_id: int, status: str = "active") -> float:
 def add_to_goal(tg_id: int, goal_id: int, amount: float, journal: bool = False,
                 description: str = None) -> dict | None:
     """
-    Пополняет цель на amount (прибавляет к saved_amount). Может уйти в минус
-    при откате (amount < 0) — тогда saved_amount не опускаем ниже нуля.
-
-    journal=True  → ДОПОЛНИТЕЛЬНО пишет маркерную транзакцию «в копилку»
-                    с goal_id (К9): вклад становится виден в истории и его
-                    можно отменить. Баланс от этой транзакции НЕ страдает —
-                    категория «в копилку» исключена из get_stats/monthly.
-    journal=False → только двигает saved_amount, транзакцию НЕ пишет
-                    (используется для ОТКАТА при отмене — там транзакция
-                    уже удаляется отдельно, второй раз журналить не нужно).
-
-    Возвращает обновлённую цель или None.
+    Пополняет цель на amount (прибавляет к saved_amount) атомарно через RPC.
     """
     try:
         db = get_client()
-        cur = db.table("goals").select("*").eq("id", goal_id).execute()
-        if not cur.data:
+        result = db.rpc("rpc_add_to_goal", {
+            "p_goal_id": goal_id,
+            "p_amount": amount
+        }).execute()
+        
+        if not result.data:
             logger.error(f"❌ Цель id={goal_id} не найдена для пополнения")
             return None
-        goal = cur.data[0]
-        new_saved = (goal.get("saved_amount") or 0) + amount
-        if new_saved < 0:
-            new_saved = 0  # защита от отрицательной копилки при откате
-        db.table("goals").update({"saved_amount": new_saved}).eq("id", goal_id).execute()
-        logger.info(f"🎯 Цель id={goal_id}: saved {amount:+} → {new_saved}")
-        goal["saved_amount"] = new_saved
+            
+        goal = result.data[0]
+        new_saved = goal.get("saved_amount", 0)
+        logger.info(f"🎯 Цель id={goal_id} атомарно обновлена: saved → {new_saved}")
 
         if journal and amount > 0:
             desc = description or f"в копилку: {goal.get('title', '')}"
-            # тип "expense" — техническая условность (в копилку = деньги «уходят»
-            # из свободных), но категория GOAL_DEPOSIT_CATEGORY исключает её из
-            # баланса и статистики, так что на цифры это НЕ влияет.
             save_transaction(tg_id, "expense", amount, GOAL_DEPOSIT_CATEGORY,
                              desc, goal_id=goal_id)
         return goal
@@ -678,26 +665,28 @@ def find_debt_by_person(tg_id: int, person: str, direction: str = None, status: 
 
 def reduce_debt(debt_id: int, amount: float) -> dict | None:
     """
-    Уменьшает долг на amount. Если остаток <= 0 — помечает долг как 'paid'.
+    Уменьшает долг на amount атомарно через RPC.
+    Если остаток <= 0 — помечает долг как 'paid'.
     Возвращает обновлённый долг {person, amount, direction, status} или None.
     """
     try:
         db = get_client()
-        cur = db.table("debts").select("*").eq("id", debt_id).execute()
-        if not cur.data:
+        result = db.rpc("rpc_reduce_debt", {
+            "p_debt_id": debt_id,
+            "p_amount": amount
+        }).execute()
+        
+        if not result.data:
             logger.error(f"❌ Долг id={debt_id} не найден")
             return None
-        debt = cur.data[0]
-        new_amount = (debt.get("amount") or 0) - amount
-        if new_amount <= 0:
-            db.table("debts").update({"amount": 0, "status": "paid"}).eq("id", debt_id).execute()
-            debt["amount"] = 0
-            debt["status"] = "paid"
-            logger.info(f"💸 Долг id={debt_id} полностью погашен")
+            
+        debt = result.data[0]
+        new_amount = debt.get("amount", 0)
+        status = debt.get("status")
+        if status == "paid":
+            logger.info(f"💸 Долг id={debt_id} полностью погашен (атомарно)")
         else:
-            db.table("debts").update({"amount": new_amount}).eq("id", debt_id).execute()
-            debt["amount"] = new_amount
-            logger.info(f"💸 Долг id={debt_id} уменьшен на {amount} → {new_amount}")
+            logger.info(f"💸 Долг id={debt_id} уменьшен → {new_amount} (атомарно)")
         return debt
     except Exception as e:
         logger.error(f"❌ Ошибка уменьшения долга: {e}")
@@ -705,25 +694,24 @@ def reduce_debt(debt_id: int, amount: float) -> dict | None:
 
 def restore_debt(debt_id: int, amount: float) -> dict | None:
     """
-    Возвращает долгу сумму обратно (прибавляет amount) и снова делает его активным.
-    Используется при ОТМЕНЕ транзакции погашения/возврата долга —
-    то есть когда мы откатываем УМЕНЬШЕНИЕ долга и он должен ожить.
+    Возвращает долгу сумму обратно (прибавляет amount) и делает его активным
+    (атомарно через RPC). Используется при ОТМЕНЕ транзакции.
     Возвращает обновлённый долг {..., amount, status} или None.
     """
     try:
         db = get_client()
-        cur = db.table("debts").select("*").eq("id", debt_id).execute()
-        if not cur.data:
+        result = db.rpc("rpc_restore_debt", {
+            "p_debt_id": debt_id,
+            "p_amount": amount
+        }).execute()
+        
+        if not result.data:
             logger.error(f"❌ Долг id={debt_id} не найден для восстановления")
             return None
-        debt = cur.data[0]
-        new_amount = (debt.get("amount") or 0) + amount
-        db.table("debts").update(
-            {"amount": new_amount, "status": "active"}
-        ).eq("id", debt_id).execute()
-        debt["amount"] = new_amount
-        debt["status"] = "active"
-        logger.info(f"💸 Долг id={debt_id} восстановлен: +{amount} → {new_amount} (снова активен)")
+            
+        debt = result.data[0]
+        new_amount = debt.get("amount", 0)
+        logger.info(f"💸 Долг id={debt_id} восстановлен → {new_amount} (снова активен, атомарно)")
         return debt
     except Exception as e:
         logger.error(f"❌ Ошибка восстановления долга: {e}")
