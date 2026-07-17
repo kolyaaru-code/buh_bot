@@ -136,9 +136,9 @@ async def cleanup_old_tokens(context: ContextTypes.DEFAULT_TYPE):
 # КОМАНДЫ
 # ============================================================
 
-@owner_only
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    profile = db.get_profile()
+    tg_id = update.effective_user.id
+    profile = db.get_profile(tg_id)
     name = profile.get("name", "")
     greeting = f"Привет, {name}! 👋" if name else "Привет! 👋"
 
