@@ -786,7 +786,7 @@ def hard_reset_all(tg_id: int) -> dict:
     общий предикат, не зависящий от имени колонки времени.
     """
     report = {}
-    tables = ["transactions", "goals", "debts", "chat_history", "user_profile"]
+    tables = ["transactions", "goals", "debts", "chat_history", "user_profile", "user_drafts"]
     try:
         db = get_client()
         for t in tables:
@@ -802,3 +802,57 @@ def hard_reset_all(tg_id: int) -> dict:
         logger.error(f"❌ RESET: критическая ошибка: {e}")
         report["_fatal"] = str(e)
         return report
+
+# ============================================================
+# ЧЕРНОВИКИ (DRAFTS)
+# ============================================================
+
+def get_draft(tg_id: int) -> dict | None:
+    """Получить текущий черновик пользователя из БД."""
+    try:
+        db = get_client()
+        result = db.table("user_drafts").select("*").eq("user_tg_id", tg_id).execute()
+        if result.data and len(result.data) > 0:
+            return result.data[0]
+        return None
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения черновика: {e}")
+        return None
+
+def save_draft(tg_id: int, draft: dict) -> bool:
+    """Сохранить (upsert) черновик пользователя в БД."""
+    try:
+        db = get_client()
+        row = {
+            "user_tg_id": tg_id,
+            "type": draft.get("type"),
+            "amount": draft.get("amount"),
+            "category": draft.get("category"),
+            "description": draft.get("description"),
+            "awaiting": draft.get("awaiting"),
+            "card_chat_id": draft.get("card_chat_id"),
+            "card_message_id": draft.get("card_message_id"),
+        }
+        
+        existing = db.table("user_drafts").select("user_tg_id").eq("user_tg_id", tg_id).execute()
+        if existing.data:
+            db.table("user_drafts").update(row).eq("user_tg_id", tg_id).execute()
+        else:
+            db.table("user_drafts").insert(row).execute()
+            
+        logger.info(f"📝 Черновик сохранён для {tg_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения черновика: {e}")
+        return False
+
+def clear_draft(tg_id: int) -> bool:
+    """Удалить черновик пользователя."""
+    try:
+        db = get_client()
+        db.table("user_drafts").delete().eq("user_tg_id", tg_id).execute()
+        logger.info(f"🗑️ Черновик удалён для {tg_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка удаления черновика: {e}")
+        return False

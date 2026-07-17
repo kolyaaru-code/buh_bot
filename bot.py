@@ -768,7 +768,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _, action, token = parts
 
     if action.startswith("draft_"):
-        await _on_draft_button(query, context, action)
+        await _on_draft_button(tg_id, query, context, action)
         return
 
     payload = _unstash(context, token)
@@ -798,7 +798,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         _drop(context, token)
         if len(txs) == 1 and not has_other:
             t = txs[0]
-            context.user_data["draft"] = {
+            draft = {
                 "type":            t.get("type"),
                 "amount":          t.get("amount"),
                 "category":        t.get("category"),
@@ -807,8 +807,9 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 "card_chat_id":    query.message.chat_id,
                 "card_message_id": query.message.message_id,
             }
+            db.save_draft(tg_id, draft)
             await query.edit_message_text(
-                _render_draft(context.user_data["draft"]), reply_markup=_draft_kb()
+                _render_draft(draft), reply_markup=_draft_kb()
             )
         else:
             await query.edit_message_text(
@@ -1108,19 +1109,20 @@ def _draft_kb() -> InlineKeyboardMarkup:
     ])
 
 
-async def _send_draft_card(message, context: ContextTypes.DEFAULT_TYPE):
+async def _send_draft_card(tg_id: int, message, context: ContextTypes.DEFAULT_TYPE):
     """Отправляет карточку-черновик и запоминает её id, чтобы обновлять на месте."""
-    draft = context.user_data.get("draft")
+    draft = db.get_draft(tg_id)
     if not draft:
         return
     sent = await message.reply_text(_render_draft(draft), reply_markup=_draft_kb())
     draft["card_chat_id"] = sent.chat_id
     draft["card_message_id"] = sent.message_id
+    db.save_draft(tg_id, draft)
 
 
-async def _refresh_draft_card(context: ContextTypes.DEFAULT_TYPE):
+async def _refresh_draft_card(tg_id: int, context: ContextTypes.DEFAULT_TYPE):
     """Обновляет ранее отправленную карточку-черновик (после ввода значения словом)."""
-    draft = context.user_data.get("draft")
+    draft = db.get_draft(tg_id)
     if not draft:
         return
     cid = draft.get("card_chat_id")
@@ -1136,9 +1138,9 @@ async def _refresh_draft_card(context: ContextTypes.DEFAULT_TYPE):
         logger.error(f"❌ Не смог обновить карточку черновика: {e}")
 
 
-async def _apply_draft_field(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+async def _apply_draft_field(tg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     """Применяет присланный текст как значение поля, которое ждали (awaiting)."""
-    draft = context.user_data.get("draft")
+    draft = db.get_draft(tg_id)
     if not draft:
         return
     field = draft.get("awaiting")
@@ -1158,13 +1160,14 @@ async def _apply_draft_field(update: Update, context: ContextTypes.DEFAULT_TYPE,
         draft["description"] = text.strip()
 
     draft["awaiting"] = None
-    await _refresh_draft_card(context)
+    db.save_draft(tg_id, draft)
+    await _refresh_draft_card(tg_id, context)
     await update.message.reply_text("✅ Обновил. Проверь карточку выше и нажми «✅ Готово».")
 
 
-async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: str):
-    """Кнопки карточки-черновика. Состояние — в context.user_data['draft']."""
-    draft = context.user_data.get("draft")
+async def _on_draft_button(tg_id: int, query, context: ContextTypes.DEFAULT_TYPE, action: str):
+    """Кнопки карточки-черновика. Состояние — в БД (user_drafts)."""
+    draft = db.get_draft(tg_id)
     if not draft:
         await query.edit_message_text("⌛ Черновик не найден. Начни операцию заново.")
         return
@@ -1172,20 +1175,23 @@ async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: st
     if action == "draft_type":
         t = draft.get("type")
         draft["type"] = "income" if t == "expense" else "expense"   # None -> expense
+        db.save_draft(tg_id, draft)
         await query.edit_message_text(_render_draft(draft), reply_markup=_draft_kb())
 
     elif action == "draft_ask_amount":
         draft["awaiting"] = "amount"
+        db.save_draft(tg_id, draft)
         await query.message.reply_text("✏️ Отправь сумму числом (например: 500).")
     elif action == "draft_ask_category":
         draft["awaiting"] = "category"
+        db.save_draft(tg_id, draft)
         await query.message.reply_text("🏷️ Напиши категорию словом (например: еда, транспорт, зарплата).")
     elif action == "draft_ask_desc":
         draft["awaiting"] = "description"
+        db.save_draft(tg_id, draft)
         await query.message.reply_text("📝 Напиши короткое описание (например: обед в кафе).")
 
     elif action == "draft_done":
-        tg_id = query.from_user.id  # <--- Достаем паспорт пользователя
         missing = []
         if draft.get("type") is None:
             missing.append("тип")
@@ -1205,7 +1211,7 @@ async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: st
         }
         pending = {"transactions": [tx], "goals": [], "debts": [], "actions": []}
         raw_text = draft.get("description") or f"{tx['type']} {tx['amount']:.0f}"
-        context.user_data.pop("draft", None)
+        db.clear_draft(tg_id)
 
         try:
             await query.edit_message_text("⏳ Записываю…")
@@ -1215,7 +1221,7 @@ async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: st
         await _commit_analysis(tg_id, query, context, pending, raw_text)
 
     elif action == "draft_cancel":
-        context.user_data.pop("draft", None)
+        db.clear_draft(tg_id)
         await query.edit_message_text("👌 Отменил, ничего не записал.")
 
 
@@ -1276,9 +1282,9 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
 
     # 1. FSM: Если мы находимся в состоянии заполнения черновика,
     # перехватываем ВЕСЬ текст как ответ на вопрос бота, игнорируя команды.
-    draft = context.user_data.get("draft")
+    draft = db.get_draft(tg_id)
     if draft and draft.get("awaiting"):
-        await _apply_draft_field(update, context, text)
+        await _apply_draft_field(tg_id, update, context, text)
         return
 
     # 2. Перехват команд естественным языком (выполняется только если мы НЕ в черновике)
@@ -1401,14 +1407,15 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     # Значит человек имел в виду трату/доход, но чего-то не хватило (типа или суммы).
     # НЕ зовём болтливый ИИ (он бы соврал «записал»), а поднимаем ЧЕРНОВИК на кнопках.
     if _has_operation_signal(text):
-        context.user_data["draft"] = {
+        draft = {
             "type":        _infer_type(text),
             "amount":      _parse_amount(text),
             "category":    None,
             "description": None,
             "awaiting":    None,
         }
-        await _send_draft_card(update.message, context)
+        db.save_draft(tg_id, draft)
+        await _send_draft_card(tg_id, update.message, context)
         return
 
     # Иначе — обычный разговор (или только профиль). Отвечает ИИ.
