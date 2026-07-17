@@ -1315,7 +1315,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
         for dep in deposit_actions:
             await _ask_deposit(update.message, context, dep["goal_title"], dep["amount"])
         if cancel_actions:
-            _, _, questions = _handle_actions(cancel_actions)
+            _, _, questions = _handle_actions(tg_id, cancel_actions)
             await _ask_questions(update.message, context, questions, [])
         return
 
@@ -1359,7 +1359,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
 
         # редкий случай: в одном сообщении и запись, и «отмени» — покажем отмену отдельно
         if cancel_actions:
-            _, _, questions = _handle_actions(cancel_actions)
+            _, _, questions = _handle_actions(tg_id, cancel_actions)
             await _ask_questions(update.message, context, questions, [])
         return
 
@@ -1387,13 +1387,13 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
             reply_markup=kb,
         )
         if cancel_actions:
-            _, _, questions = _handle_actions(cancel_actions)
+            _, _, questions = _handle_actions(tg_id, cancel_actions)
             await _ask_questions(update.message, context, questions, [])
         return
 
     # Записывать нечего. Возможно, только «отмени».
     if cancel_actions:
-        _, _, questions = _handle_actions(cancel_actions)
+        _, _, questions = _handle_actions(tg_id, cancel_actions)
         await _ask_questions(update.message, context, questions, [])
         return
 
