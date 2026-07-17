@@ -1338,7 +1338,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     if len(analysis["transactions"]) == 1 and not analysis["goals"] and not write_actions:
         t = analysis["transactions"][0]
         if t["type"] == "expense" and (t.get("category") not in db.NON_CASH_CATEGORIES):
-            match = db.find_goal_by_title(t.get("description") or "")
+            match = db.find_goal_by_title(tg_id, t.get("description") or "")
             if match:
                 goal_hints.append({
                     "goal_id": match["id"],
