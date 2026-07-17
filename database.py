@@ -88,12 +88,13 @@ def get_client() -> Client:
 # ТРАНЗАКЦИИ
 # ============================================================
 
-def save_transaction(type_op: str, amount: float, category: str, description: str,
+def save_transaction(tg_id: int, type_op: str, amount: float, category: str, description: str,
                      debt_id: int = None, goal_id: int = None) -> int | None:
     """Сохраняет транзакцию. Возвращает id созданной записи или None при ошибке."""
     try:
         db = get_client()
         row = {
+            "user_tg_id":  tg_id,
             "type":        type_op,
             "amount":      amount,
             "category":    category,
@@ -135,13 +136,14 @@ def get_transaction(tx_id: int) -> dict | None:
         logger.error(f"❌ Ошибка получения транзакции: {e}")
         return None
 
-def get_recent_transactions_full(limit: int = 10) -> list:
+def get_recent_transactions_full(tg_id: int, limit: int = 10) -> list:
     """Последние транзакции со всеми полями (id, debt_id, goal_id) — для поиска при отмене."""
     try:
         db = get_client()
         result = (
             db.table("transactions")
             .select("*")
+            .eq("user_tg_id", tg_id)
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
@@ -151,7 +153,7 @@ def get_recent_transactions_full(limit: int = 10) -> list:
         logger.error(f"❌ Ошибка получения последних транзакций: {e}")
         return []
 
-def get_stats() -> dict:
+def get_stats(tg_id: int) -> dict:
     """
     Общая статистика по ЖИВЫМ деньгам.
     Вклады в копилку (GOAL_CATEGORIES) исключаем: это не трата и не доход,
@@ -161,7 +163,7 @@ def get_stats() -> dict:
     """
     try:
         db = get_client()
-        result = db.table("transactions").select("type, amount, category").execute()
+        result = db.table("transactions").select("type, amount, category").eq("user_tg_id", tg_id).execute()
         rows = result.data
         total_income = sum(
             (r["amount"] or 0) for r in rows
@@ -183,12 +185,13 @@ def get_stats() -> dict:
         logger.error(f"❌ Ошибка получения статистики: {e}")
         return None
 
-def get_last_transactions(limit: int = 5) -> list:
+def get_last_transactions(tg_id: int, limit: int = 5) -> list:
     try:
         db = get_client()
         result = (
             db.table("transactions")
             .select("type, amount, category, description, created_at")
+            .eq("user_tg_id", tg_id)
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
@@ -198,12 +201,13 @@ def get_last_transactions(limit: int = 5) -> list:
         logger.error(f"❌ Ошибка получения истории: {e}")
         return []
 
-def get_expenses_by_category() -> dict:
+def get_expenses_by_category(tg_id: int) -> dict:
     try:
         db = get_client()
         result = (
             db.table("transactions")
             .select("category, amount")
+            .eq("user_tg_id", tg_id)
             .eq("type", "expense")
             .execute()
         )
@@ -220,7 +224,7 @@ def get_expenses_by_category() -> dict:
         logger.error(f"❌ Ошибка получения категорий: {e}")
         return {}
 
-def get_monthly_stats() -> dict:
+def get_monthly_stats(tg_id: int) -> dict:
     """Статистика за текущий месяц по местному времени (Екатеринбург)."""
     try:
         db = get_client()
@@ -233,6 +237,7 @@ def get_monthly_stats() -> dict:
         result = (
             db.table("transactions")
             .select("type, amount, category")
+            .eq("user_tg_id", tg_id)
             .gte("created_at", month_start_iso)
             .execute()
         )
@@ -263,11 +268,11 @@ def get_monthly_stats() -> dict:
 # Хранит пары ключ-значение: "name" → "Никита"
 # ============================================================
 
-def get_profile() -> dict:
+def get_profile(tg_id: int) -> dict:
     """Получить весь профиль как словарь"""
     try:
         db = get_client()
-        result = db.table("user_profile").select("key, value").execute()
+        result = db.table("user_profile").select("key, value").eq("user_tg_id", tg_id).execute()
         return {row["key"]: row["value"] for row in result.data}
     except Exception as e:
         logger.error(f"❌ Ошибка получения профиля: {e}")
@@ -292,12 +297,13 @@ def set_profile(key: str, value: str) -> bool:
 # ЦЕЛИ (модель «резерв»)
 # ============================================================
 
-def get_goals(status: str = "active") -> list:
+def get_goals(tg_id: int, status: str = "active") -> list:
     try:
         db = get_client()
         result = (
             db.table("goals")
             .select("*")
+            .eq("user_tg_id", tg_id)
             .eq("status", status)
             .order("created_at", desc=False)
             .execute()
@@ -348,17 +354,17 @@ def _normalize_title(s: str) -> str:
         # пробелы, дефисы, пунктуацию отбрасываем
     return "".join(out)
 
-def find_goal_by_title(title: str, status: str = "active") -> dict | None:
+def find_goal_by_title(tg_id: int, title: str, status: str = "active") -> dict | None:
     """
     Ищет активную цель с похожим названием (устойчиво к раскладке и регистру).
     Возвращает первую совпавшую цель или None.
     Для интерактивного выбора используй find_goal_match() — она сообщает
     ещё и НАСКОЛЬКО уверенно совпало.
     """
-    m = find_goal_match(title, status)
+    m = find_goal_match(tg_id, title, status)
     return m["goal"] if m else None
 
-def find_goal_match(title: str, status: str = "active") -> dict | None:
+def find_goal_match(tg_id: int, title: str, status: str = "active") -> dict | None:
     """
     Как find_goal_by_title, но возвращает {"goal": ..., "exact": bool} или None.
     exact=True  — точное совпадение после нормализации (можно уверенно предлагать);
@@ -369,7 +375,7 @@ def find_goal_match(title: str, status: str = "active") -> dict | None:
         needle = _normalize_title(title)
         if not needle:
             return None
-        goals = get_goals(status)
+        goals = get_goals(tg_id, status)
         # 1) точное совпадение после нормализации
         for g in goals:
             if _normalize_title(g.get("title") or "") == needle:
@@ -402,11 +408,11 @@ def find_goal_match(title: str, status: str = "active") -> dict | None:
         logger.error(f"❌ Ошибка поиска цели: {e}")
         return None
 
-def get_goals_brief(status: str = "active") -> list:
+def get_goals_brief(tg_id: int, status: str = "active") -> list:
     """Короткий список активных целей для кнопок выбора: [{id, title, saved, target}]."""
     try:
         out = []
-        for g in get_goals(status):
+        for g in get_goals(tg_id, status):
             out.append({
                 "id": g["id"],
                 "title": g.get("title") or "",
@@ -418,18 +424,18 @@ def get_goals_brief(status: str = "active") -> list:
         logger.error(f"❌ Ошибка списка целей: {e}")
         return []
 
-def get_saved_in_goals(status: str = "active") -> float:
+def get_saved_in_goals(tg_id: int, status: str = "active") -> float:
     """Сумма всех saved_amount по активным целям — 'сколько в копилке'."""
     try:
         total = 0
-        for g in get_goals(status):
+        for g in get_goals(tg_id, status):
             total += (g.get("saved_amount") or 0)
         return total
     except Exception as e:
         logger.error(f"❌ Ошибка подсчёта копилки: {e}")
         return 0
 
-def add_to_goal(goal_id: int, amount: float, journal: bool = False,
+def add_to_goal(tg_id: int, goal_id: int, amount: float, journal: bool = False,
                 description: str = None) -> dict | None:
     """
     Пополняет цель на amount (прибавляет к saved_amount). Может уйти в минус
@@ -464,18 +470,18 @@ def add_to_goal(goal_id: int, amount: float, journal: bool = False,
             # тип "expense" — техническая условность (в копилку = деньги «уходят»
             # из свободных), но категория GOAL_DEPOSIT_CATEGORY исключает её из
             # баланса и статистики, так что на цифры это НЕ влияет.
-            save_transaction("expense", amount, GOAL_DEPOSIT_CATEGORY,
+            save_transaction(tg_id, "expense", amount, GOAL_DEPOSIT_CATEGORY,
                              desc, goal_id=goal_id)
         return goal
     except Exception as e:
         logger.error(f"❌ Ошибка пополнения цели: {e}")
         return None
 
-def add_goal(title: str, target_amount: float, deadline: str = None) -> int | None:
+def add_goal(tg_id: int, title: str, target_amount: float, deadline: str = None) -> int | None:
     """Добавляет цель. Возвращает id созданной цели или None при ошибке."""
     try:
         db = get_client()
-        data = {"title": title, "target_amount": target_amount}
+        data = {"user_tg_id": tg_id, "title": title, "target_amount": target_amount}
         if deadline:
             data["deadline"] = deadline
         result = db.table("goals").insert(data).execute()
@@ -487,12 +493,13 @@ def add_goal(title: str, target_amount: float, deadline: str = None) -> int | No
         logger.error(f"❌ Ошибка добавления цели: {e}")
         return None
 
-def complete_goal(goal_id: int, spent_amount: float, category: str, description: str) -> bool:
+def complete_goal(tg_id: int, goal_id: int, spent_amount: float, category: str, description: str) -> bool:
     """ЗАКРЫТЬ ЦЕЛЬ ПОКУПКОЙ (Атомарно через RPC).
     Пишет расход и обнуляет цель прямо внутри базы данных за один шаг."""
     try:
         db = get_client()
         result = db.rpc("rpc_complete_goal", {
+            "p_user_tg_id": tg_id,  # <--- Передаем паспорт в БД
             "p_goal_id": goal_id,
             "p_amount": spent_amount,
             "p_category": category,
@@ -563,12 +570,13 @@ def update_goal_progress(goal_id: int, saved_amount: float) -> bool:
 # ДОЛГИ
 # ============================================================
 
-def get_debts(status: str = "active") -> list:
+def get_debts(tg_id: int, status: str = "active") -> list:
     try:
         db = get_client()
         result = (
             db.table("debts")
             .select("*")
+            .eq("user_tg_id", tg_id)
             .eq("status", status)
             .order("created_at", desc=False)
             .execute()
@@ -578,11 +586,12 @@ def get_debts(status: str = "active") -> list:
         logger.error(f"❌ Ошибка получения долгов: {e}")
         return []
 
-def add_debt(direction: str, person: str, amount: float, description: str = "", due_date: str = None) -> int | None:
+def add_debt(tg_id: int, direction: str, person: str, amount: float, description: str = "", due_date: str = None) -> int | None:
     """Добавляет долг. Возвращает id созданного долга или None при ошибке."""
     try:
         db = get_client()
         data = {
+            "user_tg_id":  tg_id,
             "direction":   direction,
             "person":      person,
             "amount":      amount,
@@ -640,7 +649,7 @@ def count_debt_transactions(debt_id: int) -> int:
         logger.error(f"❌ Ошибка подсчёта транзакций долга: {e}")
         return 0
 
-def find_debt_by_person(person: str, direction: str = None, status: str = "active") -> dict | None:
+def find_debt_by_person(tg_id: int, person: str, direction: str = None, status: str = "active") -> dict | None:
     """
     Ищет активный долг по имени человека (без учёта регистра).
     direction (опционально): 'i_owe' или 'owe_me' — сузить поиск.
@@ -650,7 +659,7 @@ def find_debt_by_person(person: str, direction: str = None, status: str = "activ
         needle = (person or "").strip().lower()
         if not needle:
             return None
-        for d in get_debts(status):
+        for d in get_debts(tg_id, status):
             d_person = (d.get("person") or "").strip().lower()
             if d_person != needle and needle not in d_person and d_person not in needle:
                 continue
@@ -720,11 +729,12 @@ def restore_debt(debt_id: int, amount: float) -> dict | None:
 # ИСТОРИЯ ДИАЛОГА — хранится в базе, не в памяти!
 # ============================================================
 
-def save_message(role: str, content: str) -> bool:
+def save_message(tg_id: int, role: str, content: str) -> bool:
     """Сохранить сообщение в историю"""
     try:
         db = get_client()
         db.table("chat_history").insert({
+            "user_tg_id": tg_id,
             "role":    role,
             "content": content,
         }).execute()
@@ -733,13 +743,14 @@ def save_message(role: str, content: str) -> bool:
         logger.error(f"❌ Ошибка сохранения сообщения: {e}")
         return False
 
-def get_chat_history(limit: int = 20) -> list:
+def get_chat_history(tg_id: int, limit: int = 20) -> list:
     """Получить последние N сообщений для контекста"""
     try:
         db = get_client()
         result = (
             db.table("chat_history")
             .select("role, content")
+            .eq("user_tg_id", tg_id)
             .order("created_at", desc=True)
             .limit(limit)
             .execute()
@@ -751,13 +762,11 @@ def get_chat_history(limit: int = 20) -> list:
         logger.error(f"❌ Ошибка получения истории диалога: {e}")
         return []
 
-def clear_chat_history() -> bool:
-    """Очистить историю диалога (удаляет все строки таблицы)."""
+def clear_chat_history(tg_id: int) -> bool:
+    """Очистить историю диалога (удаляет только строки пользователя)."""
     try:
         db = get_client()
-        # gte по created_at от 'начала времён' = удалить все строки.
-        # Надёжнее, чем neq id 0, и не зависит от типа id.
-        db.table("chat_history").delete().gte("created_at", "1970-01-01").execute()
+        db.table("chat_history").delete().eq("user_tg_id", tg_id).execute()
         logger.info("🧹 История диалога очищена")
         return True
     except Exception as e:
@@ -769,9 +778,9 @@ def clear_chat_history() -> bool:
 # HARD RESET — полное обнуление для чистого теста «с нуля» (/reset)
 # ============================================================
 
-def hard_reset_all() -> dict:
+def hard_reset_all(tg_id: int) -> dict:
     """
-    Стирает ВСЕ пользовательские данные во всех таблицах: транзакции, цели,
+    Стирает пользовательские данные во всех таблицах: транзакции, цели,
     долги, историю диалога и профиль. Возвращает отчёт {table: ok/err}.
 
     ⚠️ НЕОБРАТИМО. Вызывать только после ЯВНОГО двойного подтверждения в bot.py.
@@ -789,7 +798,7 @@ def hard_reset_all() -> dict:
         db = get_client()
         for t in tables:
             try:
-                db.table(t).delete().gte("id", 0).execute()
+                db.table(t).delete().eq("user_tg_id", tg_id).execute()
                 report[t] = "ok"
                 logger.info(f"🧨 RESET: таблица {t} очищена")
             except Exception as e:

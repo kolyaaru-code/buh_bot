@@ -67,13 +67,13 @@ def owner_only(func):
 # ------------------------------------------------------------
 # ВСПОМОГАТЕЛЬНОЕ
 # ------------------------------------------------------------
-def load_context() -> dict:
+def load_context(tg_id: int) -> dict:
     return {
-        "profile": db.get_profile(),
-        "stats":   db.get_stats(),
-        "monthly": db.get_monthly_stats(),
-        "goals":   db.get_goals(),
-        "debts":   db.get_debts(),
+        "profile": db.get_profile(tg_id),
+        "stats":   db.get_stats(tg_id),
+        "monthly": db.get_monthly_stats(tg_id),
+        "goals":   db.get_goals(tg_id),
+        "debts":   db.get_debts(tg_id),
     }
 
 def _fmt_local_date(created_at: str) -> str:
@@ -167,9 +167,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/reset — стереть все данные (с подтверждением)"
     )
 
-@owner_only
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    stats = db.get_stats()
+    tg_id = update.effective_user.id
+    stats = db.get_stats(tg_id)
     if not stats:
         await update.message.reply_text("❌ Не удалось получить данные.")
         return
@@ -177,7 +177,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("📊 Записей пока нет. Просто напиши что купил!")
         return
 
-    saved = db.get_saved_in_goals()
+    saved = db.get_saved_in_goals(tg_id)
     free = stats["balance"] - saved
 
     emoji = "🟢" if stats["balance"] > 0 else "🔴" if stats["balance"] < 0 else "⚪"
@@ -197,9 +197,9 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"\n📝 Всего записей: {stats['count']}"
     await update.message.reply_text(text)
 
-@owner_only
 async def month(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    monthly = db.get_monthly_stats()
+    tg_id = update.effective_user.id
+    monthly = db.get_monthly_stats(tg_id)
     if not monthly:
         await update.message.reply_text("❌ Не удалось получить данные.")
         return
@@ -215,9 +215,9 @@ async def month(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📝 Операций за месяц: {monthly['count']}"
     )
 
-@owner_only
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    transactions = db.get_last_transactions(7)
+    tg_id = update.effective_user.id
+    transactions = db.get_last_transactions(tg_id, 7)
     if not transactions:
         await update.message.reply_text("📭 История пуста.")
         return
@@ -233,9 +233,9 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     await update.message.reply_text(text)
 
-@owner_only
 async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    cats = db.get_expenses_by_category()
+    tg_id = update.effective_user.id
+    cats = db.get_expenses_by_category(tg_id)
     if not cats:
         await update.message.reply_text("📭 Расходов пока нет.")
         return
@@ -249,9 +249,9 @@ async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{bar} {percent:.0f}%\n{cat}: {amount:,.0f}\n\n"
     await update.message.reply_text(text)
 
-@owner_only
 async def goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    goals_list = db.get_goals()
+    tg_id = update.effective_user.id
+    goals_list = db.get_goals(tg_id)
     if not goals_list:
         await update.message.reply_text(
             "🎯 Целей пока нет.\n\n"
@@ -276,9 +276,9 @@ async def goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     await update.message.reply_text(text)
 
-@owner_only
 async def debts(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    debts_list = db.get_debts()
+    tg_id = update.effective_user.id
+    debts_list = db.get_debts(tg_id)
     if not debts_list:
         await update.message.reply_text(
             "💸 Долгов нет — отлично! 🎉\n\n"
@@ -309,9 +309,9 @@ async def debts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text)
 
-@owner_only
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    prof = db.get_profile()
+    tg_id = update.effective_user.id
+    prof = db.get_profile(tg_id)
     if not prof:
         await update.message.reply_text(
             "👤 Профиль пока пуст.\n\n"
@@ -333,36 +333,30 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{label}: {value}\n"
     await update.message.reply_text(text)
 
-@owner_only
 async def advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _typing(update, context)
-    ctx = load_context()
+    tg_id = update.effective_user.id
+    ctx = load_context(tg_id)
     if not ctx["stats"] or ctx["stats"]["count"] == 0:
         await update.message.reply_text("📭 Мало данных для анализа. Добавь несколько записей!")
         return
 
-    cats = db.get_expenses_by_category()
+    cats = db.get_expenses_by_category(tg_id)
     advice_text = ai.get_financial_advice(
         ctx["profile"], ctx["stats"], ctx["monthly"], cats, ctx["goals"], ctx["debts"]
     )
     await update.message.reply_text(f"💡 Совет:\n\n{advice_text}")
 
-@owner_only
 async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    db.clear_chat_history()
+    tg_id = update.effective_user.id
+    db.clear_chat_history(tg_id)
     await update.message.reply_text("🧹 Память диалога очищена!")
 
-# ------------------------------------------------------------
-# /reset — ПОЛНОЕ обнуление всех данных (для чистого теста «с нуля»).
-# ⚠️ НЕОБРАТИМО. Поэтому — ДВА шага подтверждения кнопками, прежде чем
-#    что-то удалить. Первый шаг предупреждает и показывает объём, второй —
-#    финальное «да, точно». Только после второго зовём hard_reset_all().
-# ------------------------------------------------------------
-@owner_only
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    stats = db.get_stats()
-    goals_n = len(db.get_goals())
-    debts_n = len(db.get_debts())
+    tg_id = update.effective_user.id
+    stats = db.get_stats(tg_id)
+    goals_n = len(db.get_goals(tg_id))
+    debts_n = len(db.get_debts(tg_id))
     cnt = stats.get("count", 0) if stats else 0
     token = _stash(context, {"kind": "reset_step1"})
     kb = InlineKeyboardMarkup([[
@@ -387,37 +381,37 @@ async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # дал в долг (owe_me) → расход «выдача долга»
 # взял в долг (i_owe) → доход «получен заём»
 # ============================================================
-def _create_debt_with_tx(d: dict) -> str:
-    debt_id = db.add_debt(d["direction"], d["person"], d["amount"], d["description"], d.get("due_date"))
+def _create_debt_with_tx(tg_id: int, d: dict) -> str:
+    debt_id = db.add_debt(tg_id, d["direction"], d["person"], d["amount"], d["description"], d.get("due_date"))
     if debt_id is None:
         return f"⚠️ Не удалось записать долг ({d['person']})"
 
     if d["direction"] == "owe_me":
         # я дал в долг — деньги ушли из кармана
-        db.save_transaction("expense", d["amount"], "выдача долга",
+        db.save_transaction(tg_id, "expense", d["amount"], "выдача долга",
                             f"дал в долг: {d['person']}", debt_id=debt_id)
         return f"💰 {d['person']} должен тебе: {d['amount']:,.0f} (списано с баланса)"
     else:
         # я взял в долг — деньги пришли в карман
-        db.save_transaction("income", d["amount"], "получен заём",
+        db.save_transaction(tg_id, "income", d["amount"], "получен заём",
                             f"взял в долг у: {d['person']}", debt_id=debt_id)
         return f"💸 Ты должен {d['person']}: {d['amount']:,.0f} (зачислено на баланс)"
 
 # ============================================================
 # РАЗБОР ЦЕЛЕЙ (создание)
 # ============================================================
-def _handle_goals(goals_found: list) -> tuple[list, list]:
+def _handle_goals(tg_id: int, goals_found: list) -> tuple[list, list]:
     saved_lines = []
     pending = []
     for g in goals_found:
         title = g["title"]
         target = g["target_amount"]
         deadline = g.get("deadline")
-        existing = db.find_goal_by_title(title)
+        existing = db.find_goal_by_title(tg_id, title)
         if existing:
             pending.append({"title": title, "target": target, "deadline": deadline})
         else:
-            goal_id = db.add_goal(title, target, deadline)
+            goal_id = db.add_goal(tg_id, title, target, deadline)
             if goal_id is not None:
                 saved_lines.append(f"🎯 Цель «{title}» на {target:,.0f}")
     return saved_lines, pending
@@ -426,7 +420,7 @@ def _handle_goals(goals_found: list) -> tuple[list, list]:
 # ОБРАБОТКА ACTIONS (действия над существующим)
 # Возвращает (saved_lines, summary_parts, questions)
 # ============================================================
-def _handle_actions(actions: list) -> tuple[list, list, list]:
+def _handle_actions(tg_id: int, actions: list) -> tuple[list, list, list]:
     saved_lines = []
     summary_parts = []
     questions = []
@@ -436,7 +430,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
 
         # --- пополнить цель (баланс НЕ трогаем) ---
         if act == "goal_deposit":
-            goal = db.find_goal_by_title(a["goal_title"])
+            goal = db.find_goal_by_title(tg_id, a["goal_title"])
             if goal is None:
                 questions.append({
                     "kind": "goal_missing",
@@ -444,7 +438,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                     "amount": a["amount"],
                 })
                 continue
-            updated = db.add_to_goal(goal["id"], a["amount"], journal=True,
+            updated = db.add_to_goal(tg_id, goal["id"], a["amount"], journal=True,
                                      description=f"в копилку: {goal.get('title','')}")
             if updated:
                 tgt = updated.get("target_amount") or 0
@@ -460,7 +454,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
 
         # --- я вернул/погасил свой долг ---
         elif act == "debt_repay":
-            debt = db.find_debt_by_person(a["person"], direction="i_owe")
+            debt = db.find_debt_by_person(tg_id, a["person"], direction="i_owe")
             if debt is None:
                 questions.append({
                     "kind": "repay_no_debt",
@@ -468,7 +462,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                     "amount": a["amount"],
                 })
                 continue
-            db.save_transaction("expense", a["amount"], "погашение долга",
+            db.save_transaction(tg_id, "expense", a["amount"], "погашение долга",
                                 f"погашение долга: {a['person']}", debt_id=debt["id"])
             updated = db.reduce_debt(debt["id"], a["amount"])
             if updated and updated.get("status") == "paid":
@@ -482,7 +476,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
 
         # --- мне вернули долг ---
         elif act == "debt_return":
-            debt = db.find_debt_by_person(a["person"], direction="owe_me")
+            debt = db.find_debt_by_person(tg_id, a["person"], direction="owe_me")
             if debt is None:
                 questions.append({
                     "kind": "return_no_debt",
@@ -490,7 +484,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
                     "amount": a["amount"],
                 })
                 continue
-            db.save_transaction("income", a["amount"], "возврат долга",
+            db.save_transaction(tg_id, "income", a["amount"], "возврат долга",
                                 f"возврат долга от: {a['person']}", debt_id=debt["id"])
             updated = db.reduce_debt(debt["id"], a["amount"])
             if updated and updated.get("status") == "paid":
@@ -510,14 +504,10 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
             })
 
         # --- купил то, на что копил: закрыть цель покупкой ---
-        # Пишем ЖИВОЙ расход (баланс падает) + закрываем цель (снимаем резерв).
-        # Оба действия — атомарно по смыслу: и деньги ушли, и копилка обнулилась,
-        # задвоения нет (см. модель «резерв» в database.py).
         elif act == "goal_complete":
-            goal = db.find_goal_by_title(a["goal_title"])
+            goal = db.find_goal_by_title(tg_id, a["goal_title"])
             if goal is None:
-                # цели нет — это просто обычная покупка, не закрытие цели
-                tx_id = db.save_transaction("expense", a["amount"],
+                tx_id = db.save_transaction(tg_id, "expense", a["amount"],
                                             a.get("category") or "другое", a["goal_title"])
                 if tx_id is not None:
                     saved_lines.append(f"🛒 {a['amount']:,.0f} — {a.get('category') or 'другое'} ({a['goal_title']})")
@@ -526,6 +516,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
             
             # Атомарно пишем расход и закрываем цель
             done = db.complete_goal(
+                tg_id,  # <--- добавили tg_id
                 goal["id"], 
                 a["amount"], 
                 a.get("category") or "другое", 
@@ -547,7 +538,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
 
         # --- передумал копить: закрыть цель без траты ---
         elif act == "goal_withdraw":
-            goal = db.find_goal_by_title(a["goal_title"])
+            goal = db.find_goal_by_title(tg_id, a["goal_title"])
             if goal is None:
                 saved_lines.append(f"🤔 Цели «{a['goal_title']}» не нашёл — нечего закрывать")
                 continue
@@ -572,6 +563,7 @@ def _handle_actions(actions: list) -> tuple[list, list, list]:
 # ============================================================
 async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
                          questions: list, pending_goals: list):
+    tg_id = message.chat_id  # <--- Достаем паспорт прямо из чата
 
     # дубликаты целей
     for p in pending_goals:
@@ -602,7 +594,7 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
 
         elif kind == "repay_no_debt":
             # Достаем все долги, где "я должен"
-            active_debts = [d for d in db.get_debts() if d["direction"] == "i_owe"]
+            active_debts = [d for d in db.get_debts(tg_id) if d["direction"] == "i_owe"]
             kb_rows = []
             
             # Генерируем кнопку для каждого существующего долга
@@ -622,7 +614,7 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
 
         elif kind == "return_no_debt":
             # Достаем все долги, где "должны мне"
-            active_debts = [d for d in db.get_debts() if d["direction"] == "owe_me"]
+            active_debts = [d for d in db.get_debts(tg_id) if d["direction"] == "owe_me"]
             kb_rows = []
             
             for d in active_debts:
@@ -641,7 +633,7 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
 
         elif kind == "cancel":
             hint = (q.get("hint") or "").strip().lower()
-            recent = db.get_recent_transactions_full(10)
+            recent = db.get_recent_transactions_full(tg_id, 10)
             target_tx = None
             if hint:
                 for t in recent:
@@ -748,9 +740,9 @@ def _deposit_pick_kb(context: ContextTypes.DEFAULT_TYPE, amount: float, said: st
     rows.append([InlineKeyboardButton("❌ Отмена", callback_data=f"q:cancel_noop:{tok_cancel}")])
     return InlineKeyboardMarkup(rows)
 
-def _do_deposit(goal_id: int, amount: float) -> str:
+def _do_deposit(tg_id: int, goal_id: int, amount: float) -> str:
     """Реальная запись вклада (журналируется, К9). Возвращает строку-итог."""
-    updated = db.add_to_goal(goal_id, amount, journal=True)
+    updated = db.add_to_goal(tg_id, goal_id, amount, journal=True)
     if not updated:
         return "⚠️ Не удалось записать вклад."
     tgt = updated.get("target_amount") or 0
@@ -766,8 +758,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
 
-    if query.from_user.id != MY_TELEGRAM_ID:
-        return
+    tg_id = query.from_user.id  # <--- СНЯЛИ ОХРАНУ И ДОСТАЛИ ПАСПОРТ!
 
     parts = query.data.split(":", 2)
     if len(parts) != 3 or parts[0] != "q":
@@ -775,7 +766,6 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     _, action, token = parts
 
-    # Кнопки черновика операции — состояние в user_data, токен не нужен.
     if action.startswith("draft_"):
         await _on_draft_button(query, context, action)
         return
@@ -785,19 +775,14 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⌛ Кнопка устарела. Повтори запрос, если нужно.")
         return
 
-    # --- подтверждение записи (новая логика: карточка -> запись только по «Да») ---
     if action == "confirm_yes":
         pending = payload.get("pending") or {}
         raw_text = payload.get("raw_text", "")
-        # Сразу гасим карточку и убираем клавиатуру — иначе на время похода
-        # в Groq (несколько секунд) кнопки остаются активными, и повторный
-        # тап по «Да» упирается в уже удалённый токен ("Кнопка устарела"),
-        # хотя запись при этом уже прошла с первого нажатия.
         try:
             await query.edit_message_text("⏳ Записываю…")
         except Exception as e:
             logger.error(f"❌ Не смог показать «Записываю…»: {e}")
-        await _commit_analysis(query, context, pending, raw_text)
+        await _commit_analysis(tg_id, query, context, pending, raw_text)
         _drop(context, token)
         return
     elif action == "confirm_no":
@@ -811,7 +796,6 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                          or (pending.get("actions") or []))
         _drop(context, token)
         if len(txs) == 1 and not has_other:
-            # одиночная транзакция -> редактируемый черновик с кнопками полей
             t = txs[0]
             context.user_data["draft"] = {
                 "type":            t.get("type"),
@@ -826,15 +810,13 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 _render_draft(context.user_data["draft"]), reply_markup=_draft_kb()
             )
         else:
-            # цель/долг/несколько операций — правку полями пока не делаем, просим переписать
             await query.edit_message_text(
                 "✏️ Хорошо. Напиши или наговори операцию заново — я разберу и переспрошу."
             )
         return
 
-    # --- дубликат цели ---
     if action == "gdup_add":
-        gid = db.add_goal(payload["title"], payload["target"], payload.get("deadline"))
+        gid = db.add_goal(tg_id, payload["title"], payload["target"], payload.get("deadline"))
         if gid is not None:
             await query.edit_message_text(f"✅ Добавил вторую цель «{payload['title']}» на {payload['target']:,.0f}.")
         else:
@@ -842,11 +824,10 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elif action == "gdup_skip":
         await query.edit_message_text(f"👌 Ок, не добавляю «{payload['title']}».")
 
-    # --- цель для пополнения не найдена ---
     elif action == "gmiss_add":
-        gid = db.add_goal(payload["goal_title"], payload["amount"], None)
+        gid = db.add_goal(tg_id, payload["goal_title"], payload["amount"], None)
         if gid is not None:
-            db.add_to_goal(gid, payload["amount"])
+            db.add_to_goal(tg_id, gid, payload["amount"])
             await query.edit_message_text(
                 f"🎯 Создал цель «{payload['goal_title']}» и отложил {payload['amount']:,.0f}.\n"
                 f"⚠️ Целевую сумму не знаю — допиши, например: «цель {payload['goal_title']} 100000»."
@@ -854,25 +835,22 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("❌ Не получилось создать цель.")
 
-    # --- погашение долга, которого нет → записать в расход ---
     elif action == "repay_exp":
-        db.save_transaction("expense", payload["amount"], "погашение долга",
+        db.save_transaction(tg_id, "expense", payload["amount"], "погашение долга",
                             f"погашение (долг не найден): {payload['person']}")
         await query.edit_message_text(f"💸 Записал {payload['amount']:,.0f} как расход.")
 
-    # --- возврат долга, которого нет → записать в доход ---
     elif action == "return_inc":
-        db.save_transaction("income", payload["amount"], "возврат долга",
+        db.save_transaction(tg_id, "income", payload["amount"], "возврат долга",
                             f"возврат (долг не найден): {payload['person']}")
         await query.edit_message_text(f"💰 Записал {payload['amount']:,.0f} как доход.")
 
-    # --- ИСПРАВЛЕНИЕ: выбрали реальный долг для погашения (я вернул) ---
     elif action == "repay_fix":
         debt_id = payload["debt_id"]
         amount = payload["amount"]
         person = payload["person"]
         
-        db.save_transaction("expense", amount, "погашение долга",
+        db.save_transaction(tg_id, "expense", amount, "погашение долга",
                             f"погашение долга: {person}", debt_id=debt_id)
         updated = db.reduce_debt(debt_id, amount)
         
@@ -886,13 +864,12 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("⚠️ Ошибка при обновлении долга.")
 
-    # --- ИСПРАВЛЕНИЕ: выбрали реальный долг для возврата (мне вернули) ---
     elif action == "return_fix":
         debt_id = payload["debt_id"]
         amount = payload["amount"]
         person = payload["person"]
         
-        db.save_transaction("income", amount, "возврат долга",
+        db.save_transaction(tg_id, "income", amount, "возврат долга",
                             f"возврат долга от: {person}", debt_id=debt_id)
         updated = db.reduce_debt(debt_id, amount)
         
@@ -906,15 +883,11 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("⚠️ Ошибка при обновлении долга.")
 
-    # --- отмена операции: подтверждено ---
     elif action == "cancel_yes":
         tx = payload.get("tx", {})
         tx_id = payload.get("tx_id")
         full = db.get_transaction(tx_id) if tx_id else None
 
-        # если транзакция была связана с долгом — откатываем ПРАВИЛЬНО по категории:
-        #   создание долга ("выдача долга"/"получен заём")  -> долг обнуляем (reduce_debt)
-        #   уменьшение долга ("погашение"/"возврат")        -> долг возвращаем (restore_debt)
         if full and full.get("debt_id"):
             debt_id = full["debt_id"]
             cat = full.get("category") or ""
@@ -924,9 +897,8 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             elif cat in REDUCTION_DEBT_CATS:
                 db.restore_debt(debt_id, amt)
 
-        # если транзакция была связана с целью — откатить пополнение
         if full and full.get("goal_id"):
-            db.add_to_goal(full["goal_id"], -(full.get("amount") or 0))
+            db.add_to_goal(tg_id, full["goal_id"], -(full.get("amount") or 0))
 
         ok = db.delete_transaction(tx_id) if tx_id else False
         if ok:
@@ -937,7 +909,6 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("❌ Не удалось отменить операцию.")
 
-    # --- сброс: шаг 1 подтверждён → просим финальное «да» ---
     elif action == "reset_confirm1":
         token2 = _stash(context, {"kind": "reset_step2"})
         kb = InlineKeyboardMarkup([[
@@ -951,9 +922,8 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb,
         )
 
-    # --- сброс: шаг 2 подтверждён → ВЫПОЛНЯЕМ ---
     elif action == "reset_confirm2":
-        report = db.hard_reset_all()
+        report = db.hard_reset_all(tg_id)
         errors = {k: v for k, v in report.items() if v != "ok"}
         if not errors:
             await query.edit_message_text(
@@ -966,9 +936,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 + "\n".join(f"  • {k}: {v}" for k, v in errors.items())
             )
 
-    # --- развилка «купил то, на что копил» ---
     elif action == "goalbuy_yes":
-        # закрыть цель покупкой: живой расход + complete_goal
         goal_id = payload.get("goal_id")
         amount = payload.get("amount")
         category = payload.get("category") or "другое"
@@ -976,8 +944,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         goal = db.get_goal(goal_id) if goal_id else None
         saved = (goal.get("saved_amount") or 0) if goal else 0
         
-        # Атомарный вызов
-        done = db.complete_goal(goal_id, amount, category, f"покупка цели: {title}") if goal_id else False
+        done = db.complete_goal(tg_id, goal_id, amount, category, f"покупка цели: {title}") if goal_id else False
         if done:
             note = ""
             if amount > saved and saved > 0:
@@ -994,19 +961,16 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             )
 
     elif action == "goalbuy_no":
-        # обычный расход, цель не трогаем
         amount = payload.get("amount")
         category = payload.get("category") or "другое"
         desc = payload.get("goal_title", "")
-        db.save_transaction("expense", amount, category, desc)
+        db.save_transaction(tg_id, "expense", amount, category, desc)
         await query.edit_message_text(f"🛒 Записал как обычный расход: {amount:,.0f} — {category}.")
 
-    # --- вклад в цель: подтвердил предложенную цель ---
     elif action == "dep_yes":
-        result = _do_deposit(payload["goal_id"], payload["amount"])
+        result = _do_deposit(tg_id, payload["goal_id"], payload["amount"])
         await query.edit_message_text("✅ " + result)
 
-    # --- вклад в цель: хочу выбрать другую цель ---
     elif action == "dep_pick":
         kb = _deposit_pick_kb(context, payload["amount"], payload.get("goal_title_said", ""))
         await query.edit_message_text(
@@ -1014,16 +978,14 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             reply_markup=kb,
         )
 
-    # --- вклад в цель: выбрал конкретную цель из списка ---
     elif action == "dep_goal":
-        result = _do_deposit(payload["goal_id"], payload["amount"])
+        result = _do_deposit(tg_id, payload["goal_id"], payload["amount"])
         await query.edit_message_text("✅ " + result)
 
-    # --- вклад в цель: создать новую цель под этот вклад ---
     elif action == "dep_new":
-        gid = db.add_goal(payload["goal_title"], payload["amount"], None)
+        gid = db.add_goal(tg_id, payload["goal_title"], payload["amount"], None)
         if gid is not None:
-            db.add_to_goal(gid, payload["amount"], journal=True)
+            db.add_to_goal(tg_id, gid, payload["amount"], journal=True)
             await query.edit_message_text(
                 f"🎯 Создал цель «{payload['goal_title']}» и отложил {payload['amount']:,.0f}.\n"
                 f"⚠️ Целевую сумму пока не знаю — задай её, например: «цель {payload['goal_title']} 100000»."
@@ -1031,7 +993,6 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         else:
             await query.edit_message_text("❌ Не получилось создать цель.")
 
-    # --- любой отказ ---
     elif action == "cancel_noop":
         await query.edit_message_text("👌 Ок, ничего не меняю.")
 
@@ -1223,6 +1184,7 @@ async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: st
         await query.message.reply_text("📝 Напиши короткое описание (например: обед в кафе).")
 
     elif action == "draft_done":
+        tg_id = query.from_user.id  # <--- Достаем паспорт пользователя
         missing = []
         if draft.get("type") is None:
             missing.append("тип")
@@ -1244,13 +1206,12 @@ async def _on_draft_button(query, context: ContextTypes.DEFAULT_TYPE, action: st
         raw_text = draft.get("description") or f"{tx['type']} {tx['amount']:.0f}"
         context.user_data.pop("draft", None)
 
-        # Скрываем кнопки и показываем статус
         try:
             await query.edit_message_text("⏳ Записываю…")
         except Exception as e:
             logger.error(f"❌ Не смог показать «Записываю…» в черновике: {e}")
 
-        await _commit_analysis(query, context, pending, raw_text)
+        await _commit_analysis(tg_id, query, context, pending, raw_text)
 
     elif action == "draft_cancel":
         context.user_data.pop("draft", None)
@@ -1310,6 +1271,7 @@ def _is_command_intent(text: str) -> str | None:
 
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     await _typing(update, context)
+    tg_id = update.effective_user.id  # <--- Достаем ID пользователя
 
     # 1. FSM: Если мы находимся в состоянии заполнения черновика,
     # перехватываем ВЕСЬ текст как ответ на вопрос бота, игнорируя команды.
@@ -1333,7 +1295,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     # Профиль применяем сразу — это не деньги, подтверждать «меня зовут…» ни к чему.
     if analysis["profile"]:
         for key, value in analysis["profile"].items():
-            db.set_profile(key, value)
+            db.set_profile(tg_id, key, value)
         logger.info(f"👤 Обновлён профиль: {analysis['profile']}")
 
     # Действия делим: «отмена» и «вклад в цель» — свои отдельные потоки,
@@ -1450,20 +1412,20 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
 
     # Иначе — обычный разговор (или только профиль). Отвечает ИИ.
     # Иначе — обычный разговор (или только профиль). Отвечает ИИ.
-    ctx = load_context()
-    chat_hist = db.get_chat_history(20)
+    ctx = load_context(tg_id)
+    chat_hist = db.get_chat_history(tg_id, 20)
     saved_summary = "обновлён профиль" if analysis["profile"] else ""
     response = ai.chat_response(
         text, chat_hist,
         ctx["profile"], ctx["stats"], ctx["monthly"], ctx["goals"], ctx["debts"],
         saved_summary=saved_summary,
     )
-    db.save_message("user", text)
-    db.save_message("assistant", response)
+    db.save_message(tg_id, "user", text)
+    db.save_message(tg_id, "assistant", response)
     await update.message.reply_text(response)
 
 
-async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: dict, raw_text: str):
+async def _commit_analysis(tg_id: int, query, context: ContextTypes.DEFAULT_TYPE, pending: dict, raw_text: str):
     """
     Реальная запись в базу — вызывается ТОЛЬКО после нажатия «✅ Да».
     pending = {"transactions": [...], "goals": [...], "debts": [...], "actions": [...]}.
@@ -1474,7 +1436,7 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
 
     # 1. Обычные транзакции
     for t in pending.get("transactions", []):
-        tx_id = db.save_transaction(t["type"], t["amount"], t["category"], t["description"])
+        tx_id = db.save_transaction(tg_id, t["type"], t["amount"], t["category"], t["description"])
         if tx_id is not None:
             emoji = "💰" if t["type"] == "income" else "🛒"
             saved_results.append(f"{emoji} {t['amount']:,.0f} — {t['category']} ({t['description']})")
@@ -1484,24 +1446,24 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
 
     # 2. Новые долги (двигают баланс)
     for d in pending.get("debts", []):
-        line = _create_debt_with_tx(d)
+        line = _create_debt_with_tx(tg_id, d)
         saved_results.append(line)
         saved_summary_parts.append(f"новый долг {d['direction']} {d['person']} {d['amount']:.0f}")
 
     # 3. Цели (создание) — дубликаты уводим в переспрос
-    goal_lines, pending_goals = _handle_goals(pending.get("goals", []))
+    goal_lines, pending_goals = _handle_goals(tg_id, pending.get("goals", []))
     saved_results.extend(goal_lines)
     for _ in goal_lines:
         saved_summary_parts.append("новая цель")
 
     # 4. Действия над существующим (пополнение цели / погашение / возврат долга)
-    action_lines, action_summary, questions = _handle_actions(pending.get("actions", []))
+    action_lines, action_summary, questions = _handle_actions(tg_id, pending.get("actions", []))
     saved_results.extend(action_lines)
     saved_summary_parts.extend(action_summary)
 
     # 5. Свежий контекст, история, ответ ИИ
-    ctx = load_context()
-    chat_hist = db.get_chat_history(20)
+    ctx = load_context(tg_id)
+    chat_hist = db.get_chat_history(tg_id, 20)
     saved_summary = "; ".join(saved_summary_parts)
     ai_text = ai.chat_response(
         raw_text, chat_hist,
@@ -1510,8 +1472,8 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
     )
 
     # 6. Сохраняем диалог (ТОЛЬКО чистый текст ИИ, без технических заголовков!)
-    db.save_message("user", raw_text)
-    db.save_message("assistant", ai_text)
+    db.save_message(tg_id, "user", raw_text)
+    db.save_message(tg_id, "assistant", ai_text)
 
     # Формируем финальное сообщение для Telegram
     final_msg = ai_text
@@ -1532,7 +1494,6 @@ async def _commit_analysis(query, context: ContextTypes.DEFAULT_TYPE, pending: d
 # ------------------------------------------------------------
 # ТЕКСТОВЫЕ СООБЩЕНИЯ
 # ------------------------------------------------------------
-@owner_only
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text
     logger.info(f"📩 Сообщение: {text}")
@@ -1541,7 +1502,6 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ------------------------------------------------------------
 # ГОЛОСОВЫЕ СООБЩЕНИЯ 🎤
 # ------------------------------------------------------------
-@owner_only
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _typing(update, context)
 
