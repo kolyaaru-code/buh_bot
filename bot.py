@@ -684,8 +684,9 @@ async def _ask_questions(message, context: ContextTypes.DEFAULT_TYPE,
 # ============================================================
 async def _ask_deposit(message, context: ContextTypes.DEFAULT_TYPE,
                        goal_title: str, amount: float):
-    match = db.find_goal_match(goal_title)   # {"goal":..., "exact":bool} | None
-    goals = db.get_goals_brief()
+    tg_id = message.chat_id  # <--- Достаем ID пользователя из сообщения
+    match = db.find_goal_match(tg_id, goal_title)   # {"goal":..., "exact":bool} | None
+    goals = db.get_goals_brief(tg_id)
 
     # целей вообще нет → сразу предложить создать
     if not goals:
@@ -722,10 +723,10 @@ async def _ask_deposit(message, context: ContextTypes.DEFAULT_TYPE,
         reply_markup=kb,
     )
 
-def _deposit_pick_kb(context: ContextTypes.DEFAULT_TYPE, amount: float, said: str) -> InlineKeyboardMarkup:
+def _deposit_pick_kb(tg_id: int, context: ContextTypes.DEFAULT_TYPE, amount: float, said: str) -> InlineKeyboardMarkup:
     """Клавиатура со всеми активными целями для выбора, куда отложить."""
     rows = []
-    for g in db.get_goals_brief():
+    for g in db.get_goals_brief(tg_id):
         token = _stash(context, {
             "kind": "dep_pick_one", "goal_id": g["id"], "amount": amount, "goal_title_said": said,
         })
@@ -972,7 +973,7 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("✅ " + result)
 
     elif action == "dep_pick":
-        kb = _deposit_pick_kb(context, payload["amount"], payload.get("goal_title_said", ""))
+        kb = _deposit_pick_kb(tg_id, context, payload["amount"], payload.get("goal_title_said", ""))
         await query.edit_message_text(
             f"В какую цель отложить {payload['amount']:,.0f}?",
             reply_markup=kb,
