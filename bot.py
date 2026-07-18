@@ -11,6 +11,7 @@ import uuid
 import tempfile
 import re
 from datetime import datetime, timezone, timedelta
+from functools import wraps
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ChatAction
@@ -137,6 +138,21 @@ async def cleanup_old_tokens(context: ContextTypes.DEFAULT_TYPE):
 # КОМАНДЫ
 # ============================================================
 
+def require_onboarding(func):
+    @wraps(func)
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        tg_id = update.effective_user.id
+        if not await _check_legal_consent(tg_id, update, context):
+            return
+        profile = db.get_profile(tg_id)
+        step = profile.get("onboarding_step")
+        if step != "done":
+            if not await _check_onboarding(tg_id, update, context, None):
+                return
+        return await func(update, context, *args, **kwargs)
+    return wrapper
+
+@require_onboarding
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     profile = db.get_profile(tg_id)
@@ -168,6 +184,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"/reset — стереть все данные (с подтверждением)"
     )
 
+@require_onboarding
 async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     stats = db.get_stats(tg_id)
@@ -201,6 +218,7 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text += f"\n📝 Всего записей: {stats['count']}"
     await update.message.reply_text(text)
 
+@require_onboarding
 async def month(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     monthly = db.get_monthly_stats(tg_id)
@@ -219,6 +237,7 @@ async def month(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"📝 Операций за месяц: {monthly['count']}"
     )
 
+@require_onboarding
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     transactions = db.get_last_transactions(tg_id, 7)
@@ -237,6 +256,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     await update.message.reply_text(text)
 
+@require_onboarding
 async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     cats = db.get_expenses_by_category(tg_id)
@@ -253,6 +273,7 @@ async def categories(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{bar} {percent:.0f}%\n{cat}: {amount:,.0f}\n\n"
     await update.message.reply_text(text)
 
+@require_onboarding
 async def goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     goals_list = db.get_goals(tg_id)
@@ -280,6 +301,7 @@ async def goals(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
     await update.message.reply_text(text)
 
+@require_onboarding
 async def debts(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     debts_list = db.get_debts(tg_id)
@@ -313,6 +335,7 @@ async def debts(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text)
 
+@require_onboarding
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     prof = db.get_profile(tg_id)
@@ -337,6 +360,7 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text += f"{label}: {value}\n"
     await update.message.reply_text(text)
 
+@require_onboarding
 async def advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await _typing(update, context)
     tg_id = update.effective_user.id
@@ -351,6 +375,7 @@ async def advice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(f"💡 Совет:\n\n{advice_text}")
 
+@require_onboarding
 async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     db.clear_chat_history(tg_id)
@@ -1353,8 +1378,13 @@ async def _check_legal_consent(tg_id: int, update: Update, context: ContextTypes
     if not kb:
         return True
 
+    name = update.effective_user.first_name or ""
+    greeting = f"Привет, {name}! 👋" if name else "Привет! 👋"
+
     await update.message.reply_text(
-        "👋 Привет! Перед тем как мы продолжим, мне нужно твое согласие на актуальные юридические документы.",
+        f"{greeting} Я твой умный финансовый помощник 💰\n\n"
+        "Я помогу тебе вести учет без скучных таблиц. Просто общайся со мной голосом или текстом!\n\n"
+        "Но перед тем как мы начнем, пожалуйста, ознакомься и подтверди согласие с юридическими документами:",
         reply_markup=kb
     )
     return False
