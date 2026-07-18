@@ -1276,9 +1276,46 @@ def _is_command_intent(text: str) -> str | None:
     
     return None
 
+# ============================================================
+# ЮРИДИЧЕСКИЙ ШЛЮЗ
+# ============================================================
+CURRENT_OFFER_VERSION = "v1.0"
+CURRENT_PD_VERSION = "v1.0"
+
+async def _check_legal_consent(tg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Проверяет, принял ли пользователь актуальные версии оферты и ПД.
+    Если нет — отправляет клавиатуру и возвращает False (прерываем обработку).
+    """
+    accepted = db.get_accepted_legal_docs(tg_id)
+    accepted_dict = {doc['doc_type']: doc['version'] for doc in accepted}
+
+    needs_offer = accepted_dict.get('offer') != CURRENT_OFFER_VERSION
+    needs_pd = accepted_dict.get('pd_consent') != CURRENT_PD_VERSION
+
+    if not needs_offer and not needs_pd:
+        return True
+
+    buttons = []
+    if needs_offer:
+        buttons.append([InlineKeyboardButton("📄 Читать Оферту", url="https://example.com/offer")])
+        buttons.append([InlineKeyboardButton("✅ Принимаю Оферту", callback_data=f"legal:offer:{CURRENT_OFFER_VERSION}")])
+    if needs_pd:
+        buttons.append([InlineKeyboardButton("📄 Читать Согласие ПДн", url="https://example.com/pd")])
+        buttons.append([InlineKeyboardButton("✅ Принимаю Согласие ПДн", callback_data=f"legal:pd_consent:{CURRENT_PD_VERSION}")])
+
+    kb = InlineKeyboardMarkup(buttons)
+    await update.message.reply_text(
+        "👋 Привет! Перед тем как мы продолжим, мне нужно твое согласие на актуальные юридические документы.",
+        reply_markup=kb
+    )
+    return False
+
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
-    await _typing(update, context)
     tg_id = update.effective_user.id  # <--- Достаем ID пользователя
+    if not await _check_legal_consent(tg_id, update, context):
+        return
+    await _typing(update, context)
 
     # 1. FSM: Если мы находимся в состоянии заполнения черновика,
     # перехватываем ВЕСЬ текст как ответ на вопрос бота, игнорируя команды.
@@ -1511,6 +1548,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ГОЛОСОВЫЕ СООБЩЕНИЯ 🎤
 # ------------------------------------------------------------
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg_id = update.effective_user.id
+    if not await _check_legal_consent(tg_id, update, context):
+        return
     await _typing(update, context)
 
     voice = update.message.voice

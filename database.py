@@ -856,3 +856,48 @@ def clear_draft(tg_id: int) -> bool:
     except Exception as e:
         logger.error(f"❌ Ошибка удаления черновика: {e}")
         return False
+
+# ============================================================
+# ЮРИДИЧЕСКИЙ ШЛЮЗ (LEGAL GATEKEEPER)
+# ============================================================
+
+def get_accepted_legal_docs(tg_id: int) -> list[dict]:
+    """
+    Возвращает список принятых юридических документов пользователя.
+    Возвращает список словарей: [{'doc_type': 'offer', 'version': 'v1.0'}, ...]
+    """
+    try:
+        db = get_client()
+        result = db.table("legal_history").select("doc_type, version").eq("user_tg_id", tg_id).execute()
+        return result.data or []
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения юр. документов для {tg_id}: {e}")
+        return []
+
+def save_legal_consent(tg_id: int, doc_type: str, version: str) -> bool:
+    """
+    Сохраняет факт принятия юридического документа пользователем.
+    """
+    try:
+        db = get_client()
+        # Пытаемся обновить, если такой тип уже есть (например, принятие новой версии)
+        # Если нет — вставляем новую запись
+        existing = db.table("legal_history").select("id").eq("user_tg_id", tg_id).eq("doc_type", doc_type).execute()
+        
+        row = {
+            "user_tg_id": tg_id,
+            "doc_type": doc_type,
+            "version": version
+            # accepted_at заполнится автоматически базой (default now())
+        }
+        
+        if existing.data:
+            db.table("legal_history").update(row).eq("id", existing.data[0]["id"]).execute()
+        else:
+            db.table("legal_history").insert(row).execute()
+            
+        logger.info(f"⚖️ Пользователь {tg_id} принял документ {doc_type} (версия {version})")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Ошибка сохранения юр. согласия {doc_type} для {tg_id}: {e}")
+        return False
