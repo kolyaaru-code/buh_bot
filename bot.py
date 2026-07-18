@@ -162,7 +162,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"{greeting} Я твой личный финансовый помощник 💰\n\n"
         f"Я помню всё о тебе, твоих целях и долгах.\n"
-        f"Просто общайся со мной как с человеком!\n\n"
+        f"Просто общайся со мной, как с человеком!\n\n"
         f"Примеры:\n"
         f"«Потратил 500 на обед» 🍕\n"
         f"«Получил зарплату 80000» 💵\n"
