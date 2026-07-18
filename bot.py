@@ -771,6 +771,24 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _on_draft_button(tg_id, query, context, action)
         return
 
+    if action.startswith("legal_"):
+        doc_type = "offer" if action == "legal_offer" else "pd_consent"
+        db.save_legal_consent(tg_id, doc_type, token)
+        
+        kb = _get_legal_keyboard(tg_id)
+        if kb:
+            await query.edit_message_reply_markup(reply_markup=kb)
+        else:
+            await query.message.delete()
+            await context.bot.send_message(
+                chat_id=tg_id, 
+                text="🎉 Отлично! Все согласия получены. Теперь бот полностью разблокирован. Можешь отправить свою операцию снова!"
+            )
+        return
+
+    if action == "noop":
+        return
+
     payload = _unstash(context, token)
     if payload is None:
         await query.edit_message_text("⌛ Кнопка устарела. Повтори запрос, если нужно.")
@@ -1282,11 +1300,7 @@ def _is_command_intent(text: str) -> str | None:
 CURRENT_OFFER_VERSION = "v1.0"
 CURRENT_PD_VERSION = "v1.0"
 
-async def _check_legal_consent(tg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
-    """
-    Проверяет, принял ли пользователь актуальные версии оферты и ПД.
-    Если нет — отправляет клавиатуру и возвращает False (прерываем обработку).
-    """
+def _get_legal_keyboard(tg_id: int) -> InlineKeyboardMarkup | None:
     accepted = db.get_accepted_legal_docs(tg_id)
     accepted_dict = {doc['doc_type']: doc['version'] for doc in accepted}
 
@@ -1294,17 +1308,32 @@ async def _check_legal_consent(tg_id: int, update: Update, context: ContextTypes
     needs_pd = accepted_dict.get('pd_consent') != CURRENT_PD_VERSION
 
     if not needs_offer and not needs_pd:
-        return True
+        return None
 
     buttons = []
     if needs_offer:
         buttons.append([InlineKeyboardButton("📄 Читать Оферту", url="https://example.com/offer")])
-        buttons.append([InlineKeyboardButton("✅ Принимаю Оферту", callback_data=f"legal:offer:{CURRENT_OFFER_VERSION}")])
+        buttons.append([InlineKeyboardButton("✅ Принимаю Оферту", callback_data=f"q:legal_offer:{CURRENT_OFFER_VERSION}")])
+    else:
+        buttons.append([InlineKeyboardButton("✅ Оферта принята", callback_data="q:noop:-")])
+
     if needs_pd:
         buttons.append([InlineKeyboardButton("📄 Читать Согласие ПДн", url="https://example.com/pd")])
-        buttons.append([InlineKeyboardButton("✅ Принимаю Согласие ПДн", callback_data=f"legal:pd_consent:{CURRENT_PD_VERSION}")])
+        buttons.append([InlineKeyboardButton("✅ Принимаю Согласие ПДн", callback_data=f"q:legal_pd:{CURRENT_PD_VERSION}")])
+    else:
+        buttons.append([InlineKeyboardButton("✅ Согласие ПДн принято", callback_data="q:noop:-")])
 
-    kb = InlineKeyboardMarkup(buttons)
+    return InlineKeyboardMarkup(buttons)
+
+async def _check_legal_consent(tg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE) -> bool:
+    """
+    Проверяет, принял ли пользователь актуальные версии оферты и ПД.
+    Если нет — отправляет клавиатуру и возвращает False (прерываем обработку).
+    """
+    kb = _get_legal_keyboard(tg_id)
+    if not kb:
+        return True
+
     await update.message.reply_text(
         "👋 Привет! Перед тем как мы продолжим, мне нужно твое согласие на актуальные юридические документы.",
         reply_markup=kb
