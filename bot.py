@@ -12,7 +12,7 @@ import tempfile
 import re
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, BotCommand
 from telegram.constants import ChatAction
 from telegram.ext import (
     ApplicationBuilder,
@@ -21,6 +21,7 @@ from telegram.ext import (
     CallbackQueryHandler,
     ContextTypes,
     filters,
+    Application,
 )
 import database as db
 import ai_helper as ai
@@ -180,19 +181,22 @@ async def balance(update: Update, context: ContextTypes.DEFAULT_TYPE):
     saved = db.get_saved_in_goals(tg_id)
     free = stats["balance"] - saved
 
+    profile = db.get_profile(tg_id)
+    currency = profile.get("currency", "RUB")
+    
     emoji = "🟢" if stats["balance"] > 0 else "🔴" if stats["balance"] < 0 else "⚪"
     text = (
         f"📊 Общий баланс\n"
         f"{'─' * 25}\n"
-        f"💰 Доходы:  {stats['income']:>12,.0f}\n"
-        f"🛒 Расходы: {stats['expense']:>12,.0f}\n"
+        f"💰 Доходы:  {stats['income']:>12,.0f} {currency}\n"
+        f"🛒 Расходы: {stats['expense']:>12,.0f} {currency}\n"
         f"{'─' * 25}\n"
-        f"{emoji} Всего:  {stats['balance']:>12,.0f}\n"
+        f"{emoji} Всего:  {stats['balance']:>12,.0f} {currency}\n"
     )
     if saved > 0:
         text += (
-            f"🐷 В копилке на цели: {saved:,.0f}\n"
-            f"✅ Свободно: {free:,.0f}\n"
+            f"🐷 В копилке на цели: {saved:,.0f} {currency}\n"
+            f"✅ Свободно: {free:,.0f} {currency}\n"
         )
     text += f"\n📝 Всего записей: {stats['count']}"
     await update.message.reply_text(text)
@@ -780,10 +784,25 @@ async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_reply_markup(reply_markup=kb)
         else:
             await query.message.delete()
-            await context.bot.send_message(
-                chat_id=tg_id, 
-                text="🎉 Отлично! Все согласия получены. Теперь бот полностью разблокирован. Можешь отправить свою операцию снова!"
-            )
+            # Запускаем онбординг сразу после юридического шлюза
+            await _check_onboarding(tg_id, update, context)
+        return
+
+    if action == "onboarding":
+        step = token.split(":", 1)[0] if ":" in token else token
+        value = token.split(":", 1)[1] if ":" in token else ""
+        if step == "currency":
+            db.set_profile(tg_id, "currency", value)
+            db.set_profile(tg_id, "onboarding_step", "profile")
+            await query.message.delete()
+            
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("⏭️ Пропустить", callback_data="q:onboarding:skip_profile:-")]])
+            msg_text = f"Супер! Валюта установлена: {value}.\n\nЧтобы мои финансовые советы были точнее, расскажи немного о себе (Имя, Возраст, Профессия, Город).\n\nНапиши одним сообщением, например: *«Меня зовут Антон, мне 25, я дизайнер из Астаны»*.\n\nЕсли не хочешь — нажми кнопку ниже."
+            await context.bot.send_message(chat_id=tg_id, text=msg_text, parse_mode="Markdown", reply_markup=kb)
+        elif step == "skip_profile":
+            db.set_profile(tg_id, "onboarding_step", "done")
+            await query.message.delete()
+            await _send_final_onboarding(tg_id, context)
         return
 
     if action == "noop":
@@ -1340,9 +1359,81 @@ async def _check_legal_consent(tg_id: int, update: Update, context: ContextTypes
     )
     return False
 
+# ============================================================
+# UX ONBOARDING
+# ============================================================
+async def _send_final_onboarding(tg_id: int, context: ContextTypes.DEFAULT_TYPE):
+    msg = (
+        "🎉 Настройка завершена!\n\n"
+        "Мне не нужны скучные таблицы и сложные кнопки. Просто общайся со мной как с человеком! "
+        "Напиши текстом или отправь голосовое сообщение: *«потратил 500 на кофе»* или *«Саша вернул мне 5000»*, и я всё пойму.\n\n"
+        "Посмотреть свои балансы всегда можно через меню команд (кнопка ☰ слева от поля ввода). Удачи!"
+    )
+    await context.bot.send_message(chat_id=tg_id, text=msg, parse_mode="Markdown")
+
+async def _check_onboarding(tg_id: int, update: Update, context: ContextTypes.DEFAULT_TYPE, text: str = None) -> bool:
+    """
+    Управляет шагами onboarding-а. Возвращает True, если онбординг пройден.
+    """
+    profile = db.get_profile(tg_id)
+    step = profile.get("onboarding_step")
+
+    if step == "done":
+        return True
+
+    if step is None or step == "currency":
+        buttons = [
+            [InlineKeyboardButton("🇷🇺 RUB (Рубли)", callback_data="q:onboarding:currency:RUB")],
+            [InlineKeyboardButton("🇰🇿 KZT (Тенге)", callback_data="q:onboarding:currency:KZT")],
+            [InlineKeyboardButton("🇺🇸 USD (Доллары)", callback_data="q:onboarding:currency:USD")],
+            [InlineKeyboardButton("🇪🇺 EUR (Евро)", callback_data="q:onboarding:currency:EUR")],
+        ]
+        kb = InlineKeyboardMarkup(buttons)
+        db.set_profile(tg_id, "onboarding_step", "currency")
+        
+        msg = "Привет! Я твой умный финансовый помощник. В какой валюте будем вести учет?"
+        if update.callback_query:
+            await context.bot.send_message(chat_id=tg_id, text=msg, reply_markup=kb)
+        elif update.message:
+            await update.message.reply_text(msg, reply_markup=kb)
+        return False
+
+    if step == "profile":
+        if text:
+            # Парсим профиль текстом
+            msg_status = await context.bot.send_message(chat_id=tg_id, text="⏳ Читаю профиль...")
+            analysis = ai.analyze_message(text)
+            parsed_profile = analysis.get("profile") or {}
+            
+            saved_keys = []
+            for k, v in parsed_profile.items():
+                if v and str(v).strip():
+                    db.set_profile(tg_id, k, str(v).strip())
+                    saved_keys.append(k)
+            
+            db.set_profile(tg_id, "onboarding_step", "done")
+            
+            if saved_keys:
+                await msg_status.edit_text("✅ Отлично, я запомнил новые данные о тебе!")
+            else:
+                await msg_status.edit_text("🤷 Я не нашел новых данных для профиля, но ничего страшного.")
+            
+            await _send_final_onboarding(tg_id, context)
+        else:
+            # Отправляем сообщение-инструкцию, если попали сюда без текста (голосовое не даем отправить)
+            kb = InlineKeyboardMarkup([[InlineKeyboardButton("⏭️ Пропустить", callback_data="q:onboarding:skip_profile:-")]])
+            msg_text = "Чтобы мои финансовые советы были точнее, расскажи немного о себе (Имя, Возраст, Профессия, Город).\n\nНапиши одним сообщением, например: *«Меня зовут Антон, мне 25, я дизайнер из Астаны»*.\n\nЕсли не хочешь — нажми кнопку ниже."
+            if update.message:
+                await update.message.reply_text(msg_text, parse_mode="Markdown", reply_markup=kb)
+        return False
+
+    return True
+
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
     tg_id = update.effective_user.id  # <--- Достаем ID пользователя
     if not await _check_legal_consent(tg_id, update, context):
+        return
+    if not await _check_onboarding(tg_id, update, context, text):
         return
     await _typing(update, context)
 
@@ -1580,6 +1671,13 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
     tg_id = update.effective_user.id
     if not await _check_legal_consent(tg_id, update, context):
         return
+
+    profile = db.get_profile(tg_id)
+    step = profile.get("onboarding_step")
+    if step != "done" and step != "profile":
+        await _check_onboarding(tg_id, update, context, None)
+        return
+
     await _typing(update, context)
 
     voice = update.message.voice
@@ -1608,12 +1706,27 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ============================================================
 # ЗАПУСК
 # ============================================================
+async def post_init(application: Application):
+    """Устанавливает кнопку Menu в Telegram (слева от поля ввода)."""
+    commands = [
+        BotCommand("balance", "📊 Общий баланс"),
+        BotCommand("month", "📅 Статистика за месяц"),
+        BotCommand("history", "🕐 Последние записи"),
+        BotCommand("goals", "🎯 Мои цели"),
+        BotCommand("debts", "💸 Мои долги"),
+        BotCommand("categories", "🏷 Расходы по категориям"),
+        BotCommand("profile", "👤 Мой профиль"),
+    ]
+    await application.bot.set_my_commands(commands)
+    logger.info("Меню команд успешно обновлено.")
+
 def main():
     logger.info("🚀 Запускаем бота с памятью...")
 
     app = (
         ApplicationBuilder()
         .token(TELEGRAM_TOKEN)
+        .post_init(post_init)
         .connect_timeout(30)
         .read_timeout(30)
         .write_timeout(30)
