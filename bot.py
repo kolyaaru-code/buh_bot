@@ -1312,13 +1312,13 @@ def _get_legal_keyboard(tg_id: int) -> InlineKeyboardMarkup | None:
 
     buttons = []
     if needs_offer:
-        buttons.append([InlineKeyboardButton("📄 Читать Оферту", url="https://example.com/offer")])
+        buttons.append([InlineKeyboardButton("📄 Читать Оферту", url="https://telegra.ph/Polzovatelskoe-soglashenie-Oferta-07-18")])
         buttons.append([InlineKeyboardButton("✅ Принимаю Оферту", callback_data=f"q:legal_offer:{CURRENT_OFFER_VERSION}")])
     else:
         buttons.append([InlineKeyboardButton("✅ Оферта принята", callback_data="q:noop:-")])
 
     if needs_pd:
-        buttons.append([InlineKeyboardButton("📄 Читать Согласие ПДн", url="https://example.com/pd")])
+        buttons.append([InlineKeyboardButton("📄 Читать Согласие ПДн", url="https://telegra.ph/Soglasiya-na-obrabotku-PDn-07-18")])
         buttons.append([InlineKeyboardButton("✅ Принимаю Согласие ПДн", callback_data=f"q:legal_pd:{CURRENT_PD_VERSION}")])
     else:
         buttons.append([InlineKeyboardButton("✅ Согласие ПДн принято", callback_data="q:noop:-")])
