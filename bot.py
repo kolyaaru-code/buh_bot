@@ -141,6 +141,13 @@ async def cleanup_old_tokens(context: ContextTypes.DEFAULT_TYPE):
 def require_onboarding(func):
     @wraps(func)
     async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args, **kwargs):
+        admin_mode = os.getenv("ADMIN_ONLY_MODE", "False")
+        my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+        if admin_mode == "True" and update.effective_user.id != my_tg_id:
+            if update.message:
+                await update.message.reply_text("🛠 Бот находится на техническом обслуживании. Доступ временно закрыт.")
+            return
+
         tg_id = update.effective_user.id
         if not await _check_legal_consent(tg_id, update, context):
             return
@@ -382,6 +389,13 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("🧹 Память диалога очищена!")
 
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin_mode = os.getenv("ADMIN_ONLY_MODE", "False")
+    my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+    if admin_mode == "True" and update.effective_user.id != my_tg_id:
+        if update.message:
+            await update.message.reply_text("🛠 Бот находится на техническом обслуживании. Доступ временно закрыт.")
+        return
+
     tg_id = update.effective_user.id
     stats = db.get_stats(tg_id)
     goals_n = len(db.get_goals(tg_id))
@@ -785,6 +799,13 @@ def _do_deposit(tg_id: int, goal_id: int, amount: float) -> str:
 # ОБРАБОТЧИК ВСЕХ КНОПОК
 # ============================================================
 async def on_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin_mode = os.getenv("ADMIN_ONLY_MODE", "False")
+    my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+    if admin_mode == "True" and update.effective_user.id != my_tg_id:
+        if update.callback_query:
+            await update.callback_query.answer("🛠 Бот находится на техническом обслуживании. Доступ временно закрыт.", show_alert=True)
+        return
+
     query = update.callback_query
     await query.answer()
 
@@ -1460,6 +1481,13 @@ async def _check_onboarding(tg_id: int, update: Update, context: ContextTypes.DE
     return True
 
 async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str):
+    admin_mode = os.getenv("ADMIN_ONLY_MODE", "False")
+    my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+    if admin_mode == "True" and update.effective_user.id != my_tg_id:
+        if update.message:
+            await update.message.reply_text("🛠 Бот находится на техническом обслуживании. Доступ временно закрыт.")
+        return
+
     tg_id = update.effective_user.id  # <--- Достаем ID пользователя
     if not await _check_legal_consent(tg_id, update, context):
         return
@@ -1698,6 +1726,13 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ГОЛОСОВЫЕ СООБЩЕНИЯ 🎤
 # ------------------------------------------------------------
 async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    admin_mode = os.getenv("ADMIN_ONLY_MODE", "False")
+    my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+    if admin_mode == "True" and update.effective_user.id != my_tg_id:
+        if update.message:
+            await update.message.reply_text("🛠 Бот находится на техническом обслуживании. Доступ временно закрыт.")
+        return
+
     tg_id = update.effective_user.id
     if not await _check_legal_consent(tg_id, update, context):
         return
