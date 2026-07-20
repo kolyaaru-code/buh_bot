@@ -901,3 +901,46 @@ def save_legal_consent(tg_id: int, doc_type: str, version: str) -> bool:
     except Exception as e:
         logger.error(f"❌ Ошибка сохранения юр. согласия {doc_type} для {tg_id}: {e}")
         return False
+
+# ============================================================
+# АДМИН ПАНЕЛЬ
+# ============================================================
+
+def get_admin_stats() -> dict:
+    """Собирает общую статистику для админа."""
+    try:
+        db = get_client()
+        # Считаем уникальных пользователей (у кого есть onboarding_step)
+        users = db.table("user_profile").select("user_tg_id").eq("key", "onboarding_step").execute()
+        unique_users = len(set(r["user_tg_id"] for r in users.data)) if users.data else 0
+
+        # Считаем транзакции (чтобы понимать размер БД)
+        txs = db.table("transactions").select("id", count="exact").limit(1).execute()
+        total_txs = txs.count if txs.count else 0
+        
+        # Считаем активные черновики
+        drafts = db.table("user_drafts").select("user_tg_id", count="exact").limit(1).execute()
+        total_drafts = drafts.count if drafts.count else 0
+
+        return {
+            "users": unique_users,
+            "transactions": total_txs,
+            "drafts": total_drafts
+        }
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения статистики админа: {e}")
+        return {"users": 0, "transactions": 0, "drafts": 0}
+
+def get_all_users() -> list:
+    """Возвращает список всех уникальных user_tg_id."""
+    try:
+        db = get_client()
+        # Берем тех, кто прошел онбординг или хотя бы начал
+        users = db.table("user_profile").select("user_tg_id").eq("key", "onboarding_step").execute()
+        if not users.data:
+            return []
+        unique_ids = list(set(r["user_tg_id"] for r in users.data))
+        return unique_ids
+    except Exception as e:
+        logger.error(f"❌ Ошибка получения всех пользователей: {e}")
+        return []

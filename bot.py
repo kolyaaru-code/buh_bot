@@ -389,6 +389,62 @@ async def clear_history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     db.clear_chat_history(tg_id)
     await update.message.reply_text("🧹 Память диалога очищена!")
 
+# ============================================================
+# АДМИН ПАНЕЛЬ
+# ============================================================
+
+async def admin_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg_id = update.effective_user.id
+    my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+    if tg_id != my_tg_id:
+        return
+
+    stats = db.get_admin_stats()
+    text = (
+        "👑 *Админ-Панель*\n"
+        "────────────────────\n"
+        f"👥 Пользователей: {stats['users']}\n"
+        f"📝 Транзакций: {stats['transactions']}\n"
+        f"⏳ Активных черновиков: {stats['drafts']}\n"
+    )
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+async def broadcast_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    tg_id = update.effective_user.id
+    my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
+    if tg_id != my_tg_id:
+        return
+
+    if not context.args:
+        await update.message.reply_text("Использование: /broadcast <сообщение>")
+        return
+
+    message_text = " ".join(context.args)
+    users = db.get_all_users()
+    
+    if not users:
+        await update.message.reply_text("В базе нет пользователей.")
+        return
+
+    await update.message.reply_text(f"🚀 Начинаю рассылку для {len(users)} пользователей...")
+    
+    success = 0
+    failed = 0
+    
+    for uid in users:
+        try:
+            await context.bot.send_message(chat_id=uid, text=message_text, parse_mode="Markdown")
+            success += 1
+        except Exception as e:
+            logger.error(f"Ошибка рассылки юзеру {uid}: {e}")
+            failed += 1
+            
+    await update.message.reply_text(
+        f"✅ Рассылка завершена!\n"
+        f"Успешно: {success}\n"
+        f"Ошибок (блокировок): {failed}"
+    )
+
 async def reset_cmd(update: Update, context: ContextTypes.DEFAULT_TYPE):
     admin_mode = os.getenv("ADMIN_ONLY_MODE", "False")
     my_tg_id = int(os.getenv("MY_TELEGRAM_ID", "0"))
@@ -1812,6 +1868,8 @@ def main():
     app.add_handler(CommandHandler("advice",     advice))
     app.add_handler(CommandHandler("clear",      clear_history))
     app.add_handler(CommandHandler("reset",      reset_cmd))
+    app.add_handler(CommandHandler("admin",      admin_cmd))
+    app.add_handler(CommandHandler("broadcast",  broadcast_cmd))
 
     # все inline-кнопки идут через единый обработчик (callback_data начинается с "q:")
     app.add_handler(CallbackQueryHandler(on_button, pattern=r"^q:"))
