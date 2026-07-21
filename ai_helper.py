@@ -74,7 +74,7 @@ def _to_float(value) -> float | None:
 # Каждый раз когда бот отвечает — он получает свежий контекст:
 # профиль, цели, долги, статистику
 # ============================================================
-def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, debts: list) -> str:
+def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, debts: list, include_finance: bool = True) -> str:
 
     # Профиль
     profile_text = "Информация о пользователе:\n"
@@ -85,18 +85,20 @@ def build_system_prompt(profile: dict, stats: dict, monthly: dict, goals: list, 
         profile_text += "  - Пока не заполнен\n"
 
     # Финансовая сводка
-    finance_text = "Финансовая сводка:\n"
-    if stats:
-        finance_text += (
-            f"  - Всего доходов: {stats.get('income', 0):,.0f}\n"
-            f"  - Всего расходов: {stats.get('expense', 0):,.0f}\n"
-            f"  - Общий баланс: {stats.get('balance', 0):,.0f}\n"
-        )
-    if monthly:
-        finance_text += (
-            f"  - Доходы за {monthly.get('month', 'месяц')}: {monthly.get('income', 0):,.0f}\n"
-            f"  - Расходы за {monthly.get('month', 'месяц')}: {monthly.get('expense', 0):,.0f}\n"
-        )
+    finance_text = ""
+    if include_finance:
+        finance_text = "Финансовая сводка:\n"
+        if stats:
+            finance_text += (
+                f"  - Всего доходов: {stats.get('income', 0):,.0f}\n"
+                f"  - Всего расходов: {stats.get('expense', 0):,.0f}\n"
+                f"  - Общий баланс: {stats.get('balance', 0):,.0f}\n"
+            )
+        if monthly:
+            finance_text += (
+                f"  - Доходы за {monthly.get('month', 'месяц')}: {monthly.get('income', 0):,.0f}\n"
+                f"  - Расходы за {monthly.get('month', 'месяц')}: {monthly.get('expense', 0):,.0f}\n"
+            )
 
     # Цели
     goals_text = "Финансовые цели:\n"
@@ -479,7 +481,7 @@ def chat_response(
     saved_summary: str = "",
 ) -> str:
     try:
-        system_prompt = build_system_prompt(profile, stats, monthly, goals, debts)
+        system_prompt = build_system_prompt(profile, stats, monthly, goals, debts, include_finance=False)
 
         if saved_summary:
             system_prompt += (
