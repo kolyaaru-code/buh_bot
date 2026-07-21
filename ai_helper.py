@@ -525,7 +525,7 @@ def chat_response(
 # ============================================================
 def get_financial_advice(profile: dict, stats: dict, monthly: dict, categories: dict, goals: list, debts: list) -> str:
     try:
-        system_prompt = build_system_prompt(profile, stats, monthly, goals, debts)
+        system_prompt = build_system_prompt(profile, stats, monthly, goals, debts, include_finance=False)
 
         cats_text = "\nРасходы по категориям:\n"
         for cat, amount in categories.items():

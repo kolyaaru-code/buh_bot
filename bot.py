@@ -1568,6 +1568,7 @@ async def process_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text:
     if intent == "goals": return await goals(update, context)
     if intent == "debts": return await debts(update, context)
     if intent == "profile": return await profile(update, context)
+    if intent == "advice": return await advice(update, context)
 
     analysis = ai.analyze_message(text)
 
@@ -1838,6 +1839,9 @@ async def post_init(application: Application):
         BotCommand("debts", "💸 Мои долги"),
         BotCommand("categories", "🏷 Расходы по категориям"),
         BotCommand("profile", "👤 Мой профиль"),
+        BotCommand("advice", "💡 Финансовый совет"),
+        BotCommand("clear_history", "🧹 Очистить память"),
+        BotCommand("reset", "🧨 Полный сброс (Admin)"),
     ]
     await application.bot.set_my_commands(commands)
     logger.info("Меню команд успешно обновлено.")
